@@ -1,0 +1,33 @@
+# Build output
+build/
+cmake-build-*/
+*.o
+*.a
+
+# SDK 動態庫（不進 repo，各平台自行放置）
+sdk/x86_64/
+sdk/aarch64/
+
+# SDK 文件（可選，體積大）
+sdk/docs/
+
+# 執行檔
+asi_hello
+
+# CMake cache
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+install_manifest.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# 測試輸出
+hello_frame.ppm
+hello_frame.jpg
