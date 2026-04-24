@@ -111,3 +111,25 @@ Windows USB → usbipd-win → WSL2 vhci-hcd → /dev/video0 → OpenCV
 - usbipd 掛載流程與 Luma Ultra UVC 完全相同
 - asi_vision_test.py 的 MJPEG + 預熱模式可直接對接 E4B 管線
 - udev rule 自動化掛載待實作
+
+## 2026-04-24 — WSL2 音訊管線驗證（Gemini 協作）
+
+### 實驗目標
+在 VITURE Luma Ultra 到貨前，驗證 WSL2 音訊擷取管線
+
+### 架構
+Realtek 麥克風 → Windows RDP → WSLg PulseServer → RDPSource → parec + sox → WAV
+
+### 關鍵指令
+export PULSE_SERVER=unix:/mnt/wslg/PulseServer
+timeout 5s parec -d RDPSource --format=s16le --rate=44100 --channels=1 | \
+  sox -t raw -r 44100 -e signed-integer -b 16 -c 1 - output.wav
+
+### 疑難排解
+- No soundcards: 需設定 PULSE_SERVER 環境變數
+- 44 bytes WAV: timeout SIGKILL 截斷 header → 改用 sox 封裝
+- Empty stream: Windows 隱私設定需開啟遠端桌面麥克風存取
+
+### M1 對應
+- 音訊管線架構確認，Luma Ultra 麥克風到貨後直接替換 RDPSource
+- WAV → Whisper large-v3-turbo 自動化迴圈已就緒
