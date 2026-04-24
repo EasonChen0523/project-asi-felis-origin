@@ -33,3 +33,24 @@
 - CUDA arch：sm_89（相容模式，非原生 sm_120 Blackwell）
 - 影響：效能略低，功能完全正常
 - 待辦：未來可重新編譯指定 sm_120 優化效能
+
+## 2026-04-24 — Whisper.cpp large-v3-turbo 驗證
+
+### 環境
+- Whisper.cpp 最新版，GCC-12 + CUDA 12.1（sm_89 相容模式）
+- 模型：ggml-large-v3-turbo.bin（1623 MB）
+- 音訊：4745_voice_only.wav（6秒，截取自 4.5s）
+
+### 測試結果
+- 輸出：「耶 转转转转 / 转转转转」✅
+- fallbacks：0p / 0h（完全穩定）
+- 實際推論時間：~1357ms（排除模型載入）
+- 對照 E4B 音訊：中文→日語幻覺 ❌
+
+### 關鍵發現
+- VAD 前處理必要：背景外語干擾導致 large-v3-turbo 幻覺循環
+- 純中文語音段落：large-v3-turbo 正確識別
+- 結論：asr_transcribe Tool 選定 Whisper large-v3-turbo + VAD
+
+### ASi Felis 音訊管線確定
+麥克風 → VAD → Whisper large-v3-turbo (-l zh) → 文字 → E4B
