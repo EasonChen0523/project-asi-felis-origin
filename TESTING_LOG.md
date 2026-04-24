@@ -93,3 +93,21 @@
 - asr_transcribe Tool：language 預設改為 auto
 - 純中文指令場景：-l zh
 - 旅遊混合語境：-l auto（Whisper 自動偵測主語言）
+
+## 2026-04-24 — WSL2 Webcam 視覺管線驗證（Gemini 協作）
+
+### 實驗目標
+在 VITURE Luma Ultra 到貨前，用 ASUS TUF F16 內建 Webcam 驗證 WSL2 視覺管線
+
+### 架構
+Windows USB → usbipd-win → WSL2 vhci-hcd → /dev/video0 → OpenCV
+
+### 關鍵發現
+- MJPEG 格式鎖定 + 20 幀預熱解決白曝光問題
+- Permission Denied 需 sudo chmod 666 /dev/video*
+- 成功截取 1920x1080 JPEG
+
+### 對 M1 的直接應用
+- usbipd 掛載流程與 Luma Ultra UVC 完全相同
+- asi_vision_test.py 的 MJPEG + 預熱模式可直接對接 E4B 管線
+- udev rule 自動化掛載待實作
