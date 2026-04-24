@@ -74,3 +74,22 @@
 - PaddleOCR 完全解決 E4B 的日文直排 OCR 問題
 - ocr_read Tool 選定：PaddleOCR lang='japan'/'ch'
 - ASi Felis CJK OCR 管線確認可行
+
+## 2026-04-24 — Whisper 多語言混合測試（IMG_4760）
+
+### 音訊條件
+- 21.4 秒，英語主體 + 日語地名（Kurobe）+ 中文短句
+- 說話者：兩人，自拍旅遊情境
+
+### 結果
+- 英語句子：完美識別 ✅
+- 「Kurobe」日語地名：完美識別 ✅
+- 「Alpine Route」：誤識為「I-Pand-Root」❌（地名上下文缺失）
+- 中文短句（強制英語模式）：轉譯為英語而非轉錄 ⚠️
+- fallbacks：0p / 0h（完全穩定）
+- 推論時間：~1.1-1.4 秒（21 秒音訊）
+
+### 架構決定更新
+- asr_transcribe Tool：language 預設改為 auto
+- 純中文指令場景：-l zh
+- 旅遊混合語境：-l auto（Whisper 自動偵測主語言）
