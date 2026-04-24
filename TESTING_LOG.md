@@ -54,3 +54,23 @@
 
 ### ASi Felis 音訊管線確定
 麥克風 → VAD → Whisper large-v3-turbo (-l zh) → 文字 → E4B
+
+## 2026-04-24 — PaddleOCR 3.5.0 日文 OCR 驗證
+
+### 環境
+- PaddleOCR 3.5.0 + PaddlePaddle 3.0.0（CPU 模式）
+- 模型：PP-OCRv5_server（自動下載）
+- 測試圖片：清水寺籤詩（日文直排，E4B 完全失敗的測試案例）
+
+### 結果（對照 E4B）
+| 項目 | E4B Q6_K | PaddleOCR |
+|---|---|---|
+| 音羽山清水寺 | ❌ 寄田山清水亭 | ✅ 0.989 |
+| 第二十三 | ❌ 第十二帖 | ✅ 0.999 |
+| 吉 | ❌ 無 | ✅ 0.997 |
+| 籤詩正文 | ❌ 鯉魚料理幻覺 | ✅ 完整讀出 |
+
+### 結論
+- PaddleOCR 完全解決 E4B 的日文直排 OCR 問題
+- ocr_read Tool 選定：PaddleOCR lang='japan'/'ch'
+- ASi Felis CJK OCR 管線確認可行
