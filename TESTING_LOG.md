@@ -242,3 +242,25 @@ Luma Ultra 實機到貨後，M5 可直接開工。
 - [ ] RGB 幀接收（`XRCameraFrameCallback`）
 - [ ] IMU / 6DoF Pose 精度（`XRPoseCallback`）
 - [ ] VSync 同步測試（`XRVSyncCallback`）
+
+## 2026-04-29 — WSL2 USB 複合設備死鎖調查（未解決）
+
+### 問題確認
+- 設備：Shinetech ASUS FHD webcam（VID 3277:0096）
+- Interface 0-1：RGB 攝影機（正常）
+- Interface 2-3：IR 攝影機（死鎖根源）
+
+### 嘗試方向與結果
+| 方向 | 結果 | 原因 |
+|------|------|------|
+| udev 禁用 IR interface（2/3） | ❌ 失敗 | WSL2 無 udevd，規則無法執行 |
+| WSL2 Kernel 升級 | ❌ 無效 | 6.6.87.2 已是最新，屬架構限制 |
+
+### 根本原因
+WSL2 虛擬化層缺乏完整 udev 支援，無法控制 USB interface 授權。
+屬 WSL2 架構限制，非設定可解決。
+
+### 現狀結論
+- WSL2 即時 Webcam：❌ 技術瓶頸，暫無解法，停止嘗試
+- Windows 原生即時辨識：✅ 穩定可用（已驗證，FPS 19-29）
+- 待驗證：Luma Ultra 在 WSL2 的兼容性（硬體到貨後）
