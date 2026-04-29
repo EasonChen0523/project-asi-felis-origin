@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>極座標 UI v3 — 角落資訊區 + VITURE Luma Ultra</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; background: #0a0a0f; font-family: Arial, sans-serif; color: #fff; }
+.container { display: flex; flex-direction: column; align-items: center; padding: 16px; gap: 18px; }
+h1 { font-size: 16px; color: #7ec8e3; margin: 0; letter-spacing: 1px; }
+.subtitle { font-size: 11px; color: #445; margin: 0; text-align: center; }
+
+.mode-bar { display: flex; gap: 6px; background: #111; border: 1px solid #1e1e2e; border-radius: 8px; padding: 6px; flex-wrap: wrap; justify-content: center; }
+.mode-btn { padding: 5px 13px; border-radius: 5px; border: 1px solid #2a2a3a; background: transparent; color: #667; cursor: pointer; font-size: 11px; transition: all 0.15s; }
+.mode-btn.active { background: #17a589; border-color: #17a589; color: #fff; font-weight: bold; }
+
+.main-panel { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+.canvas-wrap { display: flex; flex-direction: column; gap: 5px; }
+.canvas-label { font-size: 10px; color: #445; text-align: center; }
+canvas { border-radius: 6px; display: block; }
+
+.ctrl-panel { background: #0d0d1c; border: 1px solid #1a1a2e; border-radius: 10px; padding: 14px; width: 255px; display: flex; flex-direction: column; gap: 10px; }
+.ctrl-section { border-bottom: 1px solid #141422; padding-bottom: 9px; }
+.ctrl-section:last-child { border-bottom: none; padding-bottom: 0; }
+.ctrl-title { font-size: 10px; color: #17a589; letter-spacing: 1px; margin-bottom: 7px; text-transform: uppercase; }
+.slider-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+.slider-row label { font-size: 10px; color: #778; }
+.slider-row .val { font-size: 10px; color: #bbb; width: 34px; text-align: right; }
+input[type=range] { width: 110px; accent-color: #17a589; }
+.tag-row { display: flex; gap: 5px; flex-wrap: wrap; }
+.tag { font-size: 10px; padding: 3px 7px; border-radius: 4px; cursor: pointer; border: 1px solid #252535; background: #0d0d1a; color: #667; transition: all 0.15s; }
+.tag.on { background: #111e2e; border-color: #17a589; color: #7ec8e3; }
+
+.eval-panel { background: #080c16; border: 1px solid #141a26; border-radius: 7px; padding: 10px; font-size: 10px; line-height: 1.9; }
+.eval-panel h4 { margin: 0 0 5px 0; color: #7ec8e3; font-size: 10px; }
+.ok { color: #4caf50; } .warn { color: #f0a500; } .issue { color: #f44336; } .info { color: #7ec8e3; }
+
+.bottom-panels { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+
+.corner-legend { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; font-size: 10px; color: #556; }
+.corner-legend span { padding: 3px 8px; border-radius: 4px; border: 1px solid #222; background: #0d0d18; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div>
+    <h1>極座標 UI v3 — 角落資訊區整合</h1>
+    <div class="subtitle">極座標環形 UI + 四角落必要資訊區 · VITURE Luma Ultra 1920×1200 · 電致變色 0.5–40%</div>
+  </div>
+
+  <div class="mode-bar">
+    <button class="mode-btn active" onclick="setMode('private')">🎬 私密螢幕</button>
+    <button class="mode-btn" onclick="setMode('ar-indoor')">🏠 透視 AR 室內</button>
+    <button class="mode-btn" onclick="setMode('ar-outdoor')">☀️ 透視 AR 戶外</button>
+    <button class="mode-btn" onclick="setMode('ar-night')">🌙 透視 AR 夜間</button>
+  </div>
+
+  <div class="main-panel">
+    <div class="canvas-wrap">
+      <div class="canvas-label">VITURE Luma Ultra 完整顯示區（1920×1200 模擬，52° FOV）</div>
+      <canvas id="mainCanvas" width="864" height="540"></canvas>
+    </div>
+
+    <div class="ctrl-panel">
+      <!-- 極座標 UI -->
+      <div class="ctrl-section">
+        <div class="ctrl-title">📐 極座標環形 UI</div>
+        <div class="slider-row">
+          <label>橢圓比例</label>
+          <input type="range" id="sEllipse" min="60" max="95" value="83" oninput="sync()">
+          <span class="val" id="vEllipse">83%</span>
+        </div>
+        <div class="slider-row">
+          <label>物件數</label>
+          <input type="range" id="sItems" min="3" max="12" value="6" oninput="sync()">
+          <span class="val" id="vItems">6</span>
+        </div>
+        <div class="slider-row">
+          <label>物件尺寸</label>
+          <input type="range" id="sSize" min="16" max="42" value="24" oninput="sync()">
+          <span class="val" id="vSize">24px</span>
+        </div>
+      </div>
+
+      <!-- 角落區 -->
+      <div class="ctrl-section">
+        <div class="ctrl-title">📌 角落資訊區</div>
+        <div class="tag-row" style="margin-bottom:7px">
+          <div class="tag on" id="cTL" onclick="toggleCorner('cTL')">↖ 日期/時間</div>
+          <div class="tag on" id="cTR" onclick="toggleCorner('cTR')">↗ 電量/連線</div>
+          <div class="tag on" id="cBL" onclick="toggleCorner('cBL')">↙ 導航/位置</div>
+          <div class="tag on" id="cBR" onclick="toggleCorner('cBR')">↘ 狀態/通知</div>
+        </div>
+        <div class="slider-row">
+          <label>角落字體</label>
+          <input type="range" id="sFontSize" min="10" max="22" value="14" oninput="sync()">
+          <span class="val" id="vFontSize">14px</span>
+        </div>
+        <div class="slider-row">
+          <label>角落邊距</label>
+          <input type="range" id="sCornerPad" min="8" max="40" value="18" oninput="sync()">
+          <span class="val" id="vCornerPad">18px</span>
+        </div>
+        <div class="slider-row">
+          <label>背景透明度</label>
+          <input type="range" id="sCornerAlpha" min="0" max="90" value="55" oninput="sync()">
+          <span class="val" id="vCornerAlpha">55%</span>
+        </div>
+      </div>
+
+      <!-- 透光率 -->
+      <div class="ctrl-section">
+        <div class="ctrl-title">🔆 電致變色透光率</div>
+        <div class="slider-row">
+          <label>透光率</label>
+          <input type="range" id="sTrans" min="1" max="40" value="5" oninput="sync()">
+          <span class="val" id="vTrans">5%</span>
+        </div>
+        <div class="slider-row">
+          <label>光暈強度</label>
+          <input type="range" id="sGlow" min="0" max="22" value="8" oninput="sync()">
+          <span class="val" id="vGlow">8</span>
+        </div>
+      </div>
+
+      <!-- 輔助標示 -->
+      <div class="ctrl-section">
+        <div class="ctrl-title">🔧 輔助標示</div>
+        <div class="tag-row">
+          <div class="tag on"  id="tagFov"     onclick="toggleTag('tagFov')">FOV 邊界</div>
+          <div class="tag on"  id="tagGaze"    onclick="toggleTag('tagGaze')">凝視點</div>
+          <div class="tag on"  id="tagEllipse" onclick="toggleTag('tagEllipse')">橢圓輪廓</div>
+          <div class="tag on"  id="tagCornerZone" onclick="toggleTag('tagCornerZone')">角落分區</div>
+          <div class="tag"     id="tagAngle"   onclick="toggleTag('tagAngle')">角度標示</div>
+          <div class="tag"     id="tagVignette" onclick="toggleTag('tagVignette')">周邊暗角</div>
+        </div>
+      </div>
+
+      <div class="eval-panel">
+        <h4>⚡ 即時評估</h4>
+        <div id="evalContent">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 角落說明 -->
+  <div class="corner-legend">
+    <span>↖ 頂左：日期 / 時間（最高優先，使用者最常查詢）</span>
+    <span>↗ 頂右：電量 / 網路連線</span>
+    <span>↙ 底左：導航提示 / 當前位置</span>
+    <span>↘ 底右：系統狀態 / 新通知數</span>
+  </div>
+
+  <!-- 輔助視圖 -->
+  <div class="bottom-panels">
+    <div class="canvas-wrap">
+      <div class="canvas-label">單眼視角（周邊辨識 + 角落可見性模擬）</div>
+      <canvas id="eyeCanvas" width="432" height="270"></canvas>
+    </div>
+    <div class="canvas-wrap">
+      <div class="canvas-label">空間利用分析（極座標覆蓋 + 角落補位）</div>
+      <canvas id="spaceCanvas" width="432" height="270"></canvas>
+    </div>
+    <div class="canvas-wrap">
+      <div class="canvas-label">角落資訊區細節放大（左上角）</div>
+      <canvas id="cornerCanvas" width="432" height="270"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 狀態 ─────────────────────────────────────────────────
+let S = {
+  mode: 'private',
+  ellipse: 0.83, items: 6, size: 24,
+  fontSize: 14, cornerPad: 18, cornerAlpha: 55,
+  trans: 5, glow: 8,
+  corners: { cTL: true, cTR: true, cBL: true, cBR: true },
+  tags: { tagFov:true, tagGaze:true, tagEllipse:true, tagCornerZone:true, tagAngle:false, tagVignette:false }
+};
+
+const ITEMS = [
+  {icon:'🔋',label:'電量', color:'#4caf50'},{icon:'🎤',label:'語音', color:'#2196f3'},
+  {icon:'📷',label:'相機', color:'#9c27b0'},{icon:'🗺️',label:'地圖', color:'#ff9800'},
+  {icon:'⏰',label:'時間', color:'#00bcd4'},{icon:'📡',label:'連線', color:'#8bc34a'},
+  {icon:'🌡️',label:'溫度', color:'#f44336'},{icon:'💬',label:'訊息', color:'#e91e63'},
+  {icon:'🔊',label:'音量', color:'#ff5722'},{icon:'📊',label:'數據', color:'#607d8b'},
+  {icon:'⚡',label:'狀態', color:'#ffc107'},{icon:'🎯',label:'焦點', color:'#17a589'},
+];
+
+// 角落資訊內容定義
+const CORNERS = {
+  TL: {
+    lines: ['2026.04.26  週日', '16:42', 'ASi Felis Online'],
+    color: '#7ec8e3', icon: '🕐'
+  },
+  TR: {
+    lines: ['🔋 78%  📡 5G', 'Wi-Fi ◉ Jetson OK', 'CPU 34%  RAM 61%'],
+    color: '#4caf50', icon: '⚡'
+  },
+  BL: {
+    lines: ['📍 台中市南屯區', '↑ 230m 直行', '目的地 2.4km'],
+    color: '#ff9800', icon: '🗺️'
+  },
+  BR: {
+    lines: ['黑足貓 ● 就緒', '新通知 ×3', 'Whisper 待機中'],
+    color: '#9c27b0', icon: '🤖'
+  }
+};
+
+const SCENES = {
+  'private':    { bg:'#030306',  transDef:1  },
+  'ar-indoor':  { bg:'indoor',   transDef:20 },
+  'ar-outdoor': { bg:'outdoor',  transDef:35 },
+  'ar-night':   { bg:'night',    transDef:35 },
+};
+
+// ── 控制 ─────────────────────────────────────────────────
+function sync() {
+  S.ellipse    = parseFloat(document.getElementById('sEllipse').value)/100;
+  S.items      = parseInt(document.getElementById('sItems').value);
+  S.size       = parseInt(document.getElementById('sSize').value);
+  S.fontSize   = parseInt(document.getElementById('sFontSize').value);
+  S.cornerPad  = parseInt(document.getElementById('sCornerPad').value);
+  S.cornerAlpha= parseInt(document.getElementById('sCornerAlpha').value);
+  S.trans      = parseInt(document.getElementById('sTrans').value);
+  S.glow       = parseInt(document.getElementById('sGlow').value);
+  document.getElementById('vEllipse').textContent   = Math.round(S.ellipse*100)+'%';
+  document.getElementById('vItems').textContent     = S.items;
+  document.getElementById('vSize').textContent      = S.size+'px';
+  document.getElementById('vFontSize').textContent  = S.fontSize+'px';
+  document.getElementById('vCornerPad').textContent = S.cornerPad+'px';
+  document.getElementById('vCornerAlpha').textContent= S.cornerAlpha+'%';
+  document.getElementById('vTrans').textContent     = S.trans+'%';
+  document.getElementById('vGlow').textContent      = S.glow;
+  draw();
+}
+
+function setMode(m) {
+  S.mode = m;
+  document.querySelectorAll('.mode-btn').forEach((b,i)=>{
+    b.className='mode-btn'+(['private','ar-indoor','ar-outdoor','ar-night'][i]===m?' active':'');
+  });
+  const sc=SCENES[m];
+  document.getElementById('sTrans').value=sc.transDef;
+  S.trans=sc.transDef;
+  document.getElementById('vTrans').textContent=sc.transDef+'%';
+  draw();
+}
+
+function toggleTag(id){ S.tags[id]=!S.tags[id]; document.getElementById(id).className='tag'+(S.tags[id]?' on':''); draw(); }
+function toggleCorner(id){ S.corners[id]=!S.corners[id]; document.getElementById(id).className='tag'+(S.corners[id]?' on':''); draw(); }
+
+// ── 背景繪製 ──────────────────────────────────────────────
+function drawBg(ctx, w, h, mode, trans) {
+  const a = trans/100;
+  if (mode==='private') { ctx.fillStyle='#020204'; ctx.fillRect(0,0,w,h); return; }
+  if (mode==='ar-indoor') {
+    const g=ctx.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,'#8ba0b5'); g.addColorStop(0.6,'#c4b89a'); g.addColorStop(1,'#6b5a3e');
+    ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='#d4e8f0'; ctx.fillRect(w*0.1,h*0.1,w*0.25,h*0.45); ctx.fillRect(w*0.65,h*0.1,w*0.25,h*0.45);
+    ctx.fillStyle='#8B6914'; ctx.fillRect(w*0.05,h*0.72,w*0.9,h*0.06);
+    ctx.fillStyle=`rgba(0,0,0,${1-a*0.9})`; ctx.fillRect(0,0,w,h);
+  } else if (mode==='ar-outdoor') {
+    const sky=ctx.createLinearGradient(0,0,0,h*0.55);
+    sky.addColorStop(0,'#1565c0'); sky.addColorStop(1,'#64b5f6');
+    ctx.fillStyle=sky; ctx.fillRect(0,0,w,h*0.55);
+    ctx.fillStyle='#2e7d32'; ctx.fillRect(0,h*0.55,w,h*0.45);
+    ctx.fillStyle='rgba(255,235,59,0.9)'; ctx.beginPath(); ctx.arc(w*0.8,h*0.15,w*0.04,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.85)';
+    [0.15,0.4].forEach(xr=>{ ctx.beginPath(); ctx.arc(w*xr,h*0.2,w*0.05,0,Math.PI*2); ctx.arc(w*xr+w*0.04,h*0.17,w*0.04,0,Math.PI*2); ctx.fill(); });
+    const oe=Math.max(0,(a-0.2)*2);
+    ctx.fillStyle=`rgba(255,255,255,${oe*0.25})`; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle=`rgba(0,0,0,${1-a*0.85})`; ctx.fillRect(0,0,w,h);
+  } else {
+    ctx.fillStyle='#020409'; ctx.fillRect(0,0,w,h);
+    for(let i=0;i<80;i++){
+      ctx.fillStyle=`rgba(255,255,255,${Math.random()*0.7+0.2})`;
+      ctx.beginPath(); ctx.arc(Math.random()*w,Math.random()*h*0.7,Math.random()*1.5,0,Math.PI*2); ctx.fill();
+    }
+    ctx.fillStyle='rgba(255,255,220,0.9)'; ctx.beginPath(); ctx.arc(w*0.85,h*0.12,w*0.03,0,Math.PI*2); ctx.fill();
+    for(let i=0;i<4;i++){
+      ctx.fillStyle='rgba(255,200,80,0.6)'; ctx.beginPath(); ctx.arc(w*(0.1+i*0.27),h*0.65,w*0.015,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(255,200,80,0.12)'; ctx.beginPath(); ctx.arc(w*(0.1+i*0.27),h*0.65,w*0.06,0,Math.PI*2); ctx.fill();
+    }
+    ctx.fillStyle=`rgba(0,0,0,${1-a*1.15})`; ctx.fillRect(0,0,w,h);
+  }
+}
+
+// ── 角落資訊區繪製 ────────────────────────────────────────
+function drawCornerInfo(ctx, w, h, scale=1) {
+  const pad = S.cornerPad * scale;
+  const fs  = S.fontSize * scale;
+  const isAR = S.mode !== 'private';
+  const bgA = S.cornerAlpha / 100;
+  const lineH = fs * 1.55;
+
+  function drawCorner(key, anchor) {
+    const c = CORNERS[key];
+    const lines = c.lines;
+    const boxW = fs * 14;
+    const boxH = lines.length * lineH + fs * 0.8;
+
+    let bx, by;
+    if (anchor==='TL') { bx=pad; by=pad; }
+    else if (anchor==='TR') { bx=w-pad-boxW; by=pad; }
+    else if (anchor==='BL') { bx=pad; by=h-pad-boxH; }
+    else { bx=w-pad-boxW; by=h-pad-boxH; }
+
+    // AR模式光暈
+    if (isAR && S.glow > 4) {
+      const gr = ctx.createRadialGradient(bx+boxW/2, by+boxH/2, 0, bx+boxW/2, by+boxH/2, boxW*0.7);
+      gr.addColorStop(0, c.color+'22');
+      gr.addColorStop(1, c.color+'00');
+      ctx.fillStyle = gr;
+      ctx.fillRect(bx-S.glow*scale, by-S.glow*scale, boxW+S.glow*scale*2, boxH+S.glow*scale*2);
+    }
+
+    // 背景
+    ctx.save();
+    ctx.globalAlpha = bgA;
+    ctx.fillStyle = '#020508';
+    roundRect(ctx, bx, by, boxW, boxH, fs*0.4);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // 左邊色條
+    ctx.fillStyle = c.color;
+    ctx.globalAlpha = 0.75;
+    roundRect(ctx, bx, by, fs*0.22, boxH, fs*0.4);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    // 文字
+    ctx.save();
+    lines.forEach((line, i) => {
+      const ty = by + fs*0.5 + lineH*(i+0.72);
+      const isFirst = i===0;
+      ctx.font = `${isFirst?'bold ':' '}${isFirst?fs:fs*0.85}px Arial`;
+      ctx.fillStyle = isFirst ? '#ffffff' : '#aabbcc';
+      ctx.textAlign = 'left';
+      ctx.fillText(line, bx + fs*0.55, ty);
+    });
+    ctx.restore();
+  }
+
+  if (S.corners.cTL) drawCorner('TL','TL');
+  if (S.corners.cTR) drawCorner('TR','TR');
+  if (S.corners.cBL) drawCorner('BL','BL');
+  if (S.corners.cBR) drawCorner('BR','BR');
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y); ctx.arcTo(x+w, y, x+w, y+r, r);
+  ctx.lineTo(x+w, y+h-r); ctx.arcTo(x+w, y+h, x+w-r, y+h, r);
+  ctx.lineTo(x+r, y+h); ctx.arcTo(x, y+h, x, y+h-r, r);
+  ctx.lineTo(x, y+r); ctx.arcTo(x, y, x+r, y, r);
+  ctx.closePath();
+}
+
+// ── 極座標 UI 繪製 ────────────────────────────────────────
+function drawPolarUI(ctx, cx, cy, rx, ry, n, sz, glow, mode, trans, scale=1) {
+  const isAR = mode !== 'private';
+  const uiA  = isAR ? Math.min(1, 0.72+(1-trans/100)*0.28) : 1;
+  const glowR = glow * scale;
+  const r    = sz * scale;
+
+  if (S.tags.tagEllipse) {
+    ctx.save();
+    ctx.strokeStyle=`rgba(255,255,255,${isAR?0.06:0.1})`;
+    ctx.lineWidth=scale; ctx.setLineDash([4*scale,10*scale]);
+    ctx.beginPath(); ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]); ctx.restore();
+  }
+
+  for(let i=0;i<n;i++){
+    const angle=(Math.PI*2/n)*i - Math.PI/2;
+    const x=cx+rx*Math.cos(angle), y=cy+ry*Math.sin(angle);
+    const item=ITEMS[i%ITEMS.length];
+
+    ctx.save();
+    ctx.globalAlpha=uiA;
+
+    if(isAR && glowR>0){
+      const gg=ctx.createRadialGradient(x,y,r*0.4,x,y,r+glowR);
+      gg.addColorStop(0,item.color+'bb'); gg.addColorStop(1,item.color+'00');
+      ctx.fillStyle=gg; ctx.beginPath(); ctx.arc(x,y,r+glowR,0,Math.PI*2); ctx.fill();
+    }
+
+    ctx.fillStyle=isAR?'rgba(0,4,12,0.74)':'rgba(0,0,0,0.72)';
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle=item.color; ctx.lineWidth=S.border||2*scale; ctx.stroke();
+
+    ctx.globalAlpha=uiA*1.05;
+    ctx.font=`${r*0.72}px Arial`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='#fff'; ctx.fillText(item.icon,x,y-r*0.12);
+    ctx.font=`${r*0.38}px Arial`; ctx.fillStyle=isAR?'#ddeeff':'#ccc';
+    ctx.fillText(item.label,x,y+r*0.52);
+    ctx.restore();
+
+    if(S.tags.tagAngle){
+      const deg=Math.round(360/n*i);
+      ctx.save();
+      ctx.font=`${9*scale}px Arial`; ctx.fillStyle='rgba(255,255,0,0.3)'; ctx.textAlign='center';
+      ctx.fillText(deg+'°', cx+(rx+16*scale)*Math.cos(angle), cy+(ry+16*scale)*Math.sin(angle));
+      ctx.restore();
+    }
+  }
+}
+
+// ── 空間分析 ──────────────────────────────────────────────
+function drawSpaceAnalysis(ctx, w, h) {
+  ctx.fillStyle='#04060e'; ctx.fillRect(0,0,w,h);
+
+  const cx=w/2, cy=h/2;
+  const rx=(w/2-16)*S.ellipse, ry=(h/2-16)*S.ellipse;
+
+  // 整體畫布（白）
+  ctx.strokeStyle='rgba(100,160,255,0.25)'; ctx.lineWidth=1; ctx.setLineDash([3,8]);
+  ctx.strokeRect(12,12,w-24,h-24); ctx.setLineDash([]);
+
+  // 極座標覆蓋區（橢圓內）- 淡藍
+  ctx.save();
+  ctx.globalAlpha=0.08; ctx.fillStyle='#2196f3';
+  ctx.beginPath(); ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2); ctx.fill();
+  ctx.globalAlpha=1; ctx.restore();
+
+  // 中央視野保護區
+  ctx.save();
+  ctx.globalAlpha=0.06; ctx.fillStyle='#4caf50';
+  const cr=Math.min(rx,ry)*0.35;
+  ctx.beginPath(); ctx.arc(cx,cy,cr,0,Math.PI*2); ctx.fill();
+  ctx.globalAlpha=0.5; ctx.strokeStyle='#4caf50'; ctx.lineWidth=0.8;
+  ctx.setLineDash([3,6]); ctx.beginPath(); ctx.arc(cx,cy,cr,0,Math.PI*2); ctx.stroke();
+  ctx.setLineDash([]); ctx.restore();
+
+  // 角落覆蓋區（橙色）
+  const pad=S.cornerPad*0.5, fs=S.fontSize*0.5;
+  const bw=fs*14, bh=fs*3*1.55+fs*0.8;
+  const corners2=[
+    {x:pad,      y:pad,       active:S.corners.cTL},
+    {x:w-pad-bw, y:pad,       active:S.corners.cTR},
+    {x:pad,      y:h-pad-bh,  active:S.corners.cBL},
+    {x:w-pad-bw, y:h-pad-bh,  active:S.corners.cBR},
+  ];
+  corners2.forEach(c=>{
+    if(!c.active)return;
+    ctx.save();
+    ctx.globalAlpha=0.18; ctx.fillStyle='#ff9800';
+    roundRect(ctx,c.x,c.y,bw,bh,2); ctx.fill();
+    ctx.globalAlpha=0.5; ctx.strokeStyle='#ff9800'; ctx.lineWidth=0.8;
+    roundRect(ctx,c.x,c.y,bw,bh,2); ctx.stroke();
+    ctx.restore();
+  });
+
+  // 橢圓輪廓
+  ctx.strokeStyle='rgba(255,200,0,0.5)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2); ctx.stroke();
+
+  // 凝視點
+  ctx.strokeStyle='rgba(255,255,255,0.2)'; ctx.lineWidth=0.8;
+  const cl=10;
+  ctx.beginPath(); ctx.moveTo(cx-cl,cy); ctx.lineTo(cx+cl,cy);
+  ctx.moveTo(cx,cy-cl); ctx.lineTo(cx,cy+cl); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,2.5,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.fill();
+
+  // 圖例
+  const legends=[
+    {color:'#4caf50', label:'中央保護區（凝視清晰）'},
+    {color:'#2196f3', label:'極座標 UI 環形區'},
+    {color:'ff9800',  label:'角落必要資訊區'},
+    {color:'#334455', label:'未覆蓋緩衝空間'},
+  ];
+  ctx.font='9px Arial'; ctx.textAlign='left';
+  legends.forEach((l,i)=>{
+    const lx=14, ly=h-14-i*16;
+    ctx.fillStyle=l.color.startsWith('#')?l.color:'#'+l.color;
+    ctx.fillRect(lx,ly-8,10,10);
+    ctx.fillStyle='#778'; ctx.fillText(l.label,lx+14,ly);
+  });
+
+  // 角落分區線（如果開啟）
+  if(S.tags.tagCornerZone){
+    ctx.strokeStyle='rgba(255,150,50,0.15)'; ctx.lineWidth=0.8; ctx.setLineDash([4,8]);
+    ctx.beginPath();
+    ctx.moveTo(w/2,12); ctx.lineTo(w/2,h-12);
+    ctx.moveTo(12,h/2); ctx.lineTo(w-12,h/2);
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  // 面積百分比文字
+  const totalArea=w*h;
+  const ellipseArea=Math.PI*rx*ry;
+  const cornerArea=corners2.filter(c=>c.active).length*bw*bh;
+  const coverPct=Math.round((ellipseArea+cornerArea)/totalArea*100);
+  ctx.fillStyle='rgba(126,200,227,0.5)'; ctx.textAlign='center'; ctx.font='10px Arial';
+  ctx.fillText(`UI 覆蓋率：${coverPct}%  中央保護區未覆蓋`, cx, 18);
+}
+
+// ── 角落細節放大 ──────────────────────────────────────────
+function drawCornerDetail(ctx, w, h) {
+  // 重建一個放大版的左上角
+  drawBg(ctx, w, h, S.mode, S.trans);
+
+  // 縮放比例：把左上角 w*0.35 × h*0.35 的區域放大到全畫布
+  const srcW=864*0.32, srcH=540*0.32;
+  const scaleX=w/srcW, scaleY=h/srcH;
+  const scale=Math.min(scaleX,scaleY);
+
+  ctx.save();
+  ctx.scale(scale, scale);
+
+  // 角落資訊（只繪左上角）
+  const origCornersTR=S.corners.cTR, origBL=S.corners.cBL, origBR=S.corners.cBR;
+  S.corners.cTR=false; S.corners.cBL=false; S.corners.cBR=false;
+  drawCornerInfo(ctx, w/scale, h/scale, 1);
+  S.corners.cTR=origCornersTR; S.corners.cBL=origBL; S.corners.cBR=origBR;
+
+  ctx.restore();
+
+  // 放大框標示
+  ctx.save();
+  ctx.strokeStyle='rgba(255,200,0,0.4)'; ctx.lineWidth=1.5; ctx.setLineDash([5,8]);
+  ctx.strokeRect(2,2,w-4,h-4); ctx.setLineDash([]);
+  ctx.font='10px Arial'; ctx.fillStyle='rgba(255,200,0,0.5)';
+  ctx.textAlign='center'; ctx.fillText('↖ 左上角放大（日期/時間區）',w/2,h-8);
+  ctx.restore();
+}
+
+// ── 主繪製 ────────────────────────────────────────────────
+function draw() {
+  const W=864,H=540,EW=432,EH=270;
+  const mainCtx=document.getElementById('mainCanvas').getContext('2d');
+  const eyeCtx =document.getElementById('eyeCanvas').getContext('2d');
+  const spcCtx =document.getElementById('spaceCanvas').getContext('2d');
+  const ctrCtx =document.getElementById('cornerCanvas').getContext('2d');
+
+  const {mode,ellipse,items,size,trans,glow}=S;
+  const isAR=mode!=='private';
+
+  // ── 主畫布 ──────────────────────────────────────────────
+  drawBg(mainCtx,W,H,mode,trans);
+
+  const cx=W/2,cy=H/2;
+  const rx=(W/2-28)*ellipse, ry=(H/2-28)*ellipse;
+
+  if(S.tags.tagFov){
+    mainCtx.save();
+    mainCtx.strokeStyle=isAR?'rgba(100,200,255,0.1)':'rgba(255,255,0,0.1)';
+    mainCtx.lineWidth=1; mainCtx.setLineDash([6,12]);
+    mainCtx.strokeRect(18,18,W-36,H-36); mainCtx.setLineDash([]);
+    mainCtx.font='11px Arial';
+    mainCtx.fillStyle=isAR?'rgba(100,200,255,0.3)':'rgba(255,255,0,0.3)';
+    mainCtx.fillText('52° FOV · 1920×1200 · 電致變色 '+trans+'%',26,34);
+    mainCtx.restore();
+  }
+
+  // 角落分區線
+  if(S.tags.tagCornerZone){
+    mainCtx.save();
+    mainCtx.strokeStyle='rgba(255,150,50,0.12)'; mainCtx.lineWidth=1; mainCtx.setLineDash([5,12]);
+    mainCtx.beginPath();
+    mainCtx.moveTo(W/2,18); mainCtx.lineTo(W/2,H-18);
+    mainCtx.moveTo(18,H/2); mainCtx.lineTo(W-18,H/2);
+    mainCtx.stroke(); mainCtx.setLineDash([]);
+    // 角落標籤
+    mainCtx.font='9px Arial'; mainCtx.fillStyle='rgba(255,150,50,0.3)';
+    mainCtx.textAlign='left';  mainCtx.fillText('↖ 日期/時間', 22, 50);
+    mainCtx.textAlign='right'; mainCtx.fillText('電量/連線 ↗', W-22, 50);
+    mainCtx.textAlign='left';  mainCtx.fillText('↙ 導航/位置', 22, H-24);
+    mainCtx.textAlign='right'; mainCtx.fillText('狀態/通知 ↘', W-22, H-24);
+    mainCtx.restore();
+  }
+
+  if(S.tags.tagGaze){
+    mainCtx.save();
+    mainCtx.strokeStyle='rgba(255,255,255,0.18)'; mainCtx.lineWidth=1;
+    const cl=14;
+    mainCtx.beginPath();
+    mainCtx.moveTo(cx-cl,cy);mainCtx.lineTo(cx+cl,cy);
+    mainCtx.moveTo(cx,cy-cl);mainCtx.lineTo(cx,cy+cl);
+    mainCtx.stroke();
+    mainCtx.beginPath(); mainCtx.arc(cx,cy,3,0,Math.PI*2);
+    mainCtx.fillStyle='rgba(255,255,255,0.35)'; mainCtx.fill();
+    mainCtx.restore();
+  }
+
+  // 極座標環形 UI
+  drawPolarUI(mainCtx,cx,cy,rx,ry,items,size,glow,mode,trans,1);
+  // 角落資訊區
+  drawCornerInfo(mainCtx,W,H,1);
+
+  // 周邊暗角
+  if(S.tags.tagVignette){
+    const vg=mainCtx.createRadialGradient(cx,cy,H*0.22,cx,cy,H*0.9);
+    vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,0.5)');
+    mainCtx.fillStyle=vg; mainCtx.fillRect(0,0,W,H);
+  }
+
+  // 高透光率警告
+  if(isAR&&trans>28){
+    mainCtx.save();
+    mainCtx.strokeStyle='rgba(255,150,0,0.4)'; mainCtx.lineWidth=1.5; mainCtx.setLineDash([4,6]);
+    mainCtx.strokeRect(8,8,W-16,H-16); mainCtx.setLineDash([]);
+    mainCtx.font='11px Arial'; mainCtx.fillStyle='rgba(255,150,0,0.65)';
+    mainCtx.textAlign='center';
+    mainCtx.fillText('⚠ 高透光率：建議光暈 ≥12，角落背景透明度 ≥60%',W/2,H-10);
+    mainCtx.restore();
+  }
+
+  // ── 單眼視角 ────────────────────────────────────────────
+  drawBg(eyeCtx,EW,EH,mode,trans);
+  const erx=(EW/2-14)*ellipse, ery=(EH/2-14)*ellipse;
+  drawPolarUI(eyeCtx,EW/2,EH/2,erx,ery,items,size*0.5,glow*0.5,mode,trans,0.5);
+  drawCornerInfo(eyeCtx,EW,EH,0.5);
+  // 周邊模糊疊加
+  const pb=eyeCtx.createRadialGradient(EW/2,EH/2,EH*0.15,EW/2,EH/2,EH*0.88);
+  pb.addColorStop(0,'rgba(0,0,0,0)'); pb.addColorStop(0.55,'rgba(0,0,0,0)'); pb.addColorStop(1,'rgba(0,0,0,0.42)');
+  eyeCtx.fillStyle=pb; eyeCtx.fillRect(0,0,EW,EH);
+  eyeCtx.save(); eyeCtx.font='10px Arial'; eyeCtx.fillStyle='rgba(255,200,100,0.45)';
+  eyeCtx.textAlign='center'; eyeCtx.fillText('周邊辨識度 ≈ 60–75%（角落接近邊界，辨識度略低）',EW/2,EH-7); eyeCtx.restore();
+
+  // ── 空間分析 ────────────────────────────────────────────
+  drawSpaceAnalysis(spcCtx,EW,EH);
+
+  // ── 角落細節 ────────────────────────────────────────────
+  drawCornerDetail(ctrCtx,EW,EH);
+
+  // ── 評估 ────────────────────────────────────────────────
+  updateEval();
+}
+
+function updateEval(){
+  const {mode,ellipse,items,size,fontSize,glow,trans,corners}=S;
+  const isAR=mode!=='private';
+  const clearance=Math.round((1-ellipse)*100);
+  let html='';
+
+  if(isAR){
+    html+=`<span class="info">透視 AR · 透光率 ${trans}%</span><br>`;
+    if(trans>30) html+=`<span class="warn">⚠ 高透光率：角落背景需加深</span><br>`;
+    else html+=`<span class="ok">✓ 透光率適中，UI 對比可接受</span><br>`;
+  } else {
+    html+=`<span class="info">私密模式 · 黑底高對比</span><br>`;
+    html+=`<span class="ok">✓ 角落資訊清晰度最佳</span><br>`;
+  }
+  html+='<br>';
+
+  if(clearance<8) html+=`<span class="issue">⚠ 橢圓邊界過近（留白${clearance}%）</span><br>`;
+  else html+=`<span class="ok">✓ 橢圓邊界充裕（留白${clearance}%）</span><br>`;
+
+  if(fontSize<12) html+=`<span class="issue">⚠ 角落字體過小（建議 ≥12px）</span><br>`;
+  else if(fontSize<16) html+=`<span class="warn">角落字體尚可（建議 ≥14px）</span><br>`;
+  else html+=`<span class="ok">✓ 角落字體清晰</span><br>`;
+
+  const activeCorners=Object.values(corners).filter(v=>v).length;
+  html+=`<br>啟用角落：${activeCorners}/4<br>`;
+  html+=`<span class="info">↖ 日期/時間為最高優先角落</span><br>`;
+  html+=`<br><span style="color:#445">極座標環形 UI + 四角落 = 完整 AR UI 架構</span>`;
+  document.getElementById('evalContent').innerHTML=html;
+}
+
+draw();
+</script>
+</body>
+</html>

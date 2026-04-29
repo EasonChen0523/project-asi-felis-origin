@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>極座標 UI v5 — 應用程式視窗框架</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; background: #07070f; font-family: Arial, sans-serif; color: #fff; }
+.container { display: flex; flex-direction: column; align-items: center; padding: 14px; gap: 16px; }
+h1 { font-size: 15px; color: #7ec8e3; margin: 0; letter-spacing: 1px; }
+.subtitle { font-size: 10px; color: #334; margin: 0; text-align: center; line-height: 1.7; }
+
+.bar { display: flex; gap: 6px; background: #0d0d18; border: 1px solid #181828; border-radius: 8px; padding: 5px; flex-wrap: wrap; justify-content: center; }
+.btn { padding: 5px 12px; border-radius: 20px; border: 1px solid #222; background: transparent; color: #556; cursor: pointer; font-size: 11px; transition: all 0.15s; }
+.btn.active { background: #17a589; border-color: #17a589; color: #fff; font-weight: bold; }
+.btn2 { padding: 5px 12px; border-radius: 20px; border: 1px solid #222; background: transparent; color: #556; cursor: pointer; font-size: 11px; transition: all 0.15s; }
+.btn2.active { background: #1a253a; border-color: #2196f3; color: #7ec8e3; font-weight: bold; }
+
+.main-panel { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+.canvas-wrap { display: flex; flex-direction: column; gap: 4px; }
+.canvas-label { font-size: 10px; color: #334; text-align: center; }
+canvas { border-radius: 6px; display: block; }
+
+.ctrl-panel { background: #0b0b18; border: 1px solid #161626; border-radius: 10px; padding: 13px; width: 248px; display: flex; flex-direction: column; gap: 9px; }
+.s { border-bottom: 1px solid #111120; padding-bottom: 8px; }
+.s:last-child { border-bottom: none; padding-bottom: 0; }
+.st { font-size: 10px; color: #17a589; letter-spacing: 1px; margin-bottom: 6px; }
+.sr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.sr label { font-size: 10px; color: #668; }
+.sr .v { font-size: 10px; color: #aaa; width: 32px; text-align: right; }
+input[type=range] { width: 106px; accent-color: #17a589; }
+.tr { display: flex; gap: 4px; flex-wrap: wrap; }
+.tg { font-size: 10px; padding: 3px 7px; border-radius: 20px; cursor: pointer; border: 1px solid #1e1e2e; background: #0b0b16; color: #556; transition: all 0.15s; }
+.tg.on { background: #0f1e2e; border-color: #17a589; color: #7ec8e3; }
+.ep { background: #060810; border: 1px solid #101820; border-radius: 7px; padding: 9px; font-size: 10px; line-height: 1.85; }
+.ep h4 { margin: 0 0 4px; color: #7ec8e3; font-size: 10px; }
+.ok{color:#4caf50}.warn{color:#f0a500}.iss{color:#f44336}.inf{color:#7ec8e3}
+
+.note { max-width: 864px; background: #0b0e18; border: 1px solid #18202e; border-radius: 8px; padding: 11px 15px; font-size: 11px; color: #556; line-height: 1.8; }
+.note strong { color: #7ec8e3; }
+.bottom-panels { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div>
+    <h1>極座標 UI v5 — 應用程式視窗框架整合</h1>
+    <div class="subtitle">
+      橢圓 Principle：容器遵循橢圓語言 · 內容保持線性可讀 · 三種視窗重新定義<br>
+      VITURE Luma Ultra 1920×1200 · 電致變色 0.5–40% · 52° FOV
+    </div>
+  </div>
+
+  <!-- 視窗類型 -->
+  <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+    <div style="font-size:10px;color:#334;letter-spacing:1px">應用程式視窗類型</div>
+    <div class="bar">
+      <button class="btn2 active" id="w0" onclick="setWin(0)">📐 傳統矩形（對照）</button>
+      <button class="btn2" id="w1" onclick="setWin(1)">🌊 A 弧形面板</button>
+      <button class="btn2" id="w2" onclick="setWin(2)">🫧 B 氣泡卡片</button>
+      <button class="btn2" id="w3" onclick="setWin(3)">✨ C 透明疊層</button>
+    </div>
+  </div>
+
+  <!-- 場景 -->
+  <div class="bar">
+    <button class="btn active" onclick="setMode('private')">🎬 私密螢幕</button>
+    <button class="btn" onclick="setMode('ar-indoor')">🏠 透視 AR 室內</button>
+    <button class="btn" onclick="setMode('ar-outdoor')">☀️ 透視 AR 戶外</button>
+    <button class="btn" onclick="setMode('ar-night')">🌙 透視 AR 夜間</button>
+  </div>
+
+  <div class="main-panel">
+    <div class="canvas-wrap">
+      <div class="canvas-label">VITURE Luma Ultra（1920×1200 · v4B 錨點延伸 + 應用程式視窗）</div>
+      <canvas id="mainCanvas" width="864" height="540"></canvas>
+    </div>
+
+    <div class="ctrl-panel">
+      <div class="s">
+        <div class="st">📐 極座標環形 UI</div>
+        <div class="sr"><label>橢圓比例</label>
+          <input type="range" id="sE" min="60" max="92" value="78" oninput="sync()">
+          <span class="v" id="vE">78%</span></div>
+        <div class="sr"><label>物件數</label>
+          <input type="range" id="sI" min="3" max="12" value="6" oninput="sync()">
+          <span class="v" id="vI">6</span></div>
+        <div class="sr"><label>物件尺寸</label>
+          <input type="range" id="sS" min="16" max="40" value="22" oninput="sync()">
+          <span class="v" id="vS">22px</span></div>
+      </div>
+      <div class="s">
+        <div class="st">🪟 視窗參數</div>
+        <div class="sr"><label>視窗寬度</label>
+          <input type="range" id="sWW" min="150" max="500" value="300" oninput="sync()">
+          <span class="v" id="vWW">300</span></div>
+        <div class="sr"><label>視窗高度</label>
+          <input type="range" id="sWH" min="100" max="380" value="200" oninput="sync()">
+          <span class="v" id="vWH">200</span></div>
+        <div class="sr"><label>圓角曲率</label>
+          <input type="range" id="sRad" min="0" max="80" value="24" oninput="sync()">
+          <span class="v" id="vRad">24</span></div>
+        <div class="sr"><label>視窗透明度</label>
+          <input type="range" id="sWA" min="20" max="95" value="75" oninput="sync()">
+          <span class="v" id="vWA">75%</span></div>
+        <div class="sr"><label>弧形彎曲度</label>
+          <input type="range" id="sArc" min="0" max="60" value="22" oninput="sync()">
+          <span class="v" id="vArc">22px</span></div>
+      </div>
+      <div class="s">
+        <div class="st">🔆 電致變色</div>
+        <div class="sr"><label>透光率</label>
+          <input type="range" id="sT" min="1" max="40" value="5" oninput="sync()">
+          <span class="v" id="vT">5%</span></div>
+        <div class="sr"><label>光暈強度</label>
+          <input type="range" id="sG" min="0" max="20" value="7" oninput="sync()">
+          <span class="v" id="vG">7</span></div>
+      </div>
+      <div class="s">
+        <div class="st">🔧 輔助</div>
+        <div class="tr">
+          <div class="tg on" id="tFov" onclick="tt('tFov')">FOV</div>
+          <div class="tg on" id="tGaze" onclick="tt('tGaze')">凝視點</div>
+          <div class="tg on" id="tEll" onclick="tt('tEll')">橢圓</div>
+          <div class="tg on" id="tAnc" onclick="tt('tAnc')">錨點</div>
+          <div class="tg" id="tGrid" onclick="tt('tGrid')">網格</div>
+          <div class="tg" id="tPrin" onclick="tt('tPrin')">Principle 範圍</div>
+        </div>
+      </div>
+      <div class="ep">
+        <h4>⚡ 設計評估</h4>
+        <div id="evalContent">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note" id="designNote">—</div>
+
+  <div class="bottom-panels">
+    <div class="canvas-wrap">
+      <div class="canvas-label">單眼視角模擬</div>
+      <canvas id="eyeCanvas" width="432" height="270"></canvas>
+    </div>
+    <div class="canvas-wrap">
+      <div class="canvas-label">幾何語言一致性分析</div>
+      <canvas id="geoCanvas" width="432" height="270"></canvas>
+    </div>
+    <div class="canvas-wrap">
+      <div class="canvas-label">四視窗類型快速對比</div>
+      <canvas id="cmpCanvas" width="432" height="270"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+let S = {
+  mode:'private', win:0,
+  ellipse:0.78, items:6, size:22,
+  winW:300, winH:200, rad:24, winAlpha:75, arc:22,
+  trans:5, glow:7,
+  tags:{tFov:true,tGaze:true,tEll:true,tAnc:true,tGrid:false,tPrin:false}
+};
+
+const ITEMS=[
+  {icon:'🔋',label:'電量',color:'#4caf50'},{icon:'🎤',label:'語音',color:'#2196f3'},
+  {icon:'📷',label:'相機',color:'#9c27b0'},{icon:'🗺️',label:'地圖',color:'#ff9800'},
+  {icon:'⏰',label:'時間',color:'#00bcd4'},{icon:'📡',label:'連線',color:'#8bc34a'},
+  {icon:'🌡️',label:'溫度',color:'#f44336'},{icon:'💬',label:'訊息',color:'#e91e63'},
+  {icon:'🔊',label:'音量',color:'#ff5722'},{icon:'📊',label:'數據',color:'#607d8b'},
+  {icon:'⚡',label:'狀態',color:'#ffc107'},{icon:'🎯',label:'焦點',color:'#17a589'},
+];
+
+const ANCHOR_ANGLES = { TL:-Math.PI*0.82, TR:-Math.PI*0.18, BL:Math.PI*0.82, BR:Math.PI*0.18 };
+const ANCHOR_INFO = {
+  TL:{lines:['2026.04.26','16:42'],color:'#7ec8e3'},
+  TR:{lines:['🔋 78%','5G ◉'],color:'#4caf50'},
+  BL:{lines:['📍 南屯區','↑ 230m'],color:'#ff9800'},
+  BR:{lines:['🤖 就緒','通知×3'],color:'#9c27b0'},
+};
+
+const WIN_NOTES = [
+  '<strong>傳統矩形視窗（對照組）</strong>：直角邊框與橢圓 principle 產生幾何衝突。<br>視覺問題：矩形的「電腦螢幕碎片感」破壞透視 AR 沉浸性。矩形四角與橢圓弧線形成尖銳的視覺張力。',
+  '<strong>A 弧形面板（Arc Panel）</strong>：視窗邊界沿橢圓曲率彎曲，內容保持線性排版。<br><strong>原則</strong>：容器遵循橢圓語言，內容不變。圓角曲率與橢圓 UI 一致，消除幾何衝突。<br><strong>適合</strong>：地圖、相機畫面、導航資訊、中等資訊量面板。',
+  '<strong>B 氣泡卡片（Bubble Card）</strong>：從橢圓錨點延伸的圓形/橢圓形浮動卡片，v4B 的應用程式版本。<br><strong>原則</strong>：視窗是橢圓系統的延伸節點，沒有固定矩形邊界，大小動態適應內容。<br><strong>適合</strong>：通知、快速操作、小工具、即時資訊卡片。',
+  '<strong>C 透明疊層（Transparent Overlay）</strong>：完全無視窗邊框，內容直接疊加現實，邊界漸層消散。<br><strong>原則</strong>：橢圓 principle 體現於文字排版的曲線對齊和弧形文字流，而非容器形狀。<br><strong>適合</strong>：導航箭頭、物件標籤、環境資訊標注、不需要使用者操作的資訊。',
+];
+
+const WIN_COLORS = ['#f44336','#ff9800','#4caf50','#2196f3'];
+
+function sync(){
+  S.ellipse   = parseFloat(document.getElementById('sE').value)/100;
+  S.items     = parseInt(document.getElementById('sI').value);
+  S.size      = parseInt(document.getElementById('sS').value);
+  S.winW      = parseInt(document.getElementById('sWW').value);
+  S.winH      = parseInt(document.getElementById('sWH').value);
+  S.rad       = parseInt(document.getElementById('sRad').value);
+  S.winAlpha  = parseInt(document.getElementById('sWA').value);
+  S.arc       = parseInt(document.getElementById('sArc').value);
+  S.trans     = parseInt(document.getElementById('sT').value);
+  S.glow      = parseInt(document.getElementById('sG').value);
+  document.getElementById('vE').textContent   = Math.round(S.ellipse*100)+'%';
+  document.getElementById('vI').textContent   = S.items;
+  document.getElementById('vS').textContent   = S.size+'px';
+  document.getElementById('vWW').textContent  = S.winW;
+  document.getElementById('vWH').textContent  = S.winH;
+  document.getElementById('vRad').textContent = S.rad;
+  document.getElementById('vWA').textContent  = S.winAlpha+'%';
+  document.getElementById('vArc').textContent = S.arc+'px';
+  document.getElementById('vT').textContent   = S.trans+'%';
+  document.getElementById('vG').textContent   = S.glow;
+  draw();
+}
+function setMode(m){
+  S.mode=m;
+  document.querySelectorAll('.btn').forEach((b,i)=>{
+    b.className='btn'+(['private','ar-indoor','ar-outdoor','ar-night'][i]===m?' active':'');
+  });
+  const d={private:1,'ar-indoor':20,'ar-outdoor':35,'ar-night':35};
+  S.trans=d[m]; document.getElementById('sT').value=S.trans; document.getElementById('vT').textContent=S.trans+'%';
+  draw();
+}
+function setWin(n){
+  S.win=n;
+  document.querySelectorAll('.btn2').forEach((b,i)=>{ b.className='btn2'+(i===n?' active':''); });
+  document.getElementById('designNote').innerHTML=WIN_NOTES[n];
+  draw();
+}
+function tt(id){ S.tags[id]=!S.tags[id]; document.getElementById(id).className='tg'+(S.tags[id]?' on':''); draw(); }
+
+// ── 背景 ─────────────────────────────────────────────────
+function drawBg(ctx,w,h){
+  const m=S.mode, a=S.trans/100;
+  if(m==='private'){ctx.fillStyle='#020204';ctx.fillRect(0,0,w,h);return;}
+  if(m==='ar-indoor'){
+    const g=ctx.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,'#8ba0b5');g.addColorStop(0.6,'#c4b89a');g.addColorStop(1,'#6b5a3e');
+    ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='#d4e8f0';ctx.fillRect(w*0.1,h*0.1,w*0.25,h*0.45);ctx.fillRect(w*0.65,h*0.1,w*0.25,h*0.45);
+    ctx.fillStyle='#8B6914';ctx.fillRect(w*0.05,h*0.72,w*0.9,h*0.06);
+    ctx.fillStyle=`rgba(0,0,0,${1-a*0.9})`;ctx.fillRect(0,0,w,h);
+  } else if(m==='ar-outdoor'){
+    const sky=ctx.createLinearGradient(0,0,0,h*0.55);
+    sky.addColorStop(0,'#1565c0');sky.addColorStop(1,'#64b5f6');
+    ctx.fillStyle=sky;ctx.fillRect(0,0,w,h*0.55);
+    ctx.fillStyle='#2e7d32';ctx.fillRect(0,h*0.55,w,h*0.45);
+    ctx.fillStyle='rgba(255,235,59,0.9)';ctx.beginPath();ctx.arc(w*0.8,h*0.15,w*0.04,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.82)';
+    [0.15,0.4].forEach(xr=>{ctx.beginPath();ctx.arc(w*xr,h*0.2,w*0.05,0,Math.PI*2);ctx.arc(w*xr+w*0.04,h*0.17,w*0.04,0,Math.PI*2);ctx.fill();});
+    const oe=Math.max(0,(a-0.2)*2);
+    ctx.fillStyle=`rgba(255,255,255,${oe*0.22})`;ctx.fillRect(0,0,w,h);
+    ctx.fillStyle=`rgba(0,0,0,${1-a*0.85})`;ctx.fillRect(0,0,w,h);
+  } else {
+    ctx.fillStyle='#020408';ctx.fillRect(0,0,w,h);
+    for(let i=0;i<80;i++){
+      ctx.fillStyle=`rgba(255,255,255,${Math.random()*0.7+0.2})`;
+      ctx.beginPath();ctx.arc(Math.random()*w,Math.random()*h*0.7,Math.random()*1.5,0,Math.PI*2);ctx.fill();
+    }
+    ctx.fillStyle='rgba(255,255,220,0.9)';ctx.beginPath();ctx.arc(w*0.85,h*0.12,w*0.03,0,Math.PI*2);ctx.fill();
+    for(let i=0;i<4;i++){
+      ctx.fillStyle='rgba(255,200,80,0.55)';ctx.beginPath();ctx.arc(w*(0.1+i*0.27),h*0.65,w*0.015,0,Math.PI*2);ctx.fill();
+    }
+    ctx.fillStyle=`rgba(0,0,0,${1-a*1.1})`;ctx.fillRect(0,0,w,h);
+  }
+}
+
+// ── 工具 ─────────────────────────────────────────────────
+function rr(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r,y+h);ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);ctx.closePath();
+}
+
+// ── 極座標環形 UI ─────────────────────────────────────────
+function drawPolarUI(ctx,cx,cy,rx,ry,sc=1){
+  const isAR=S.mode!=='private';
+  const uiA=isAR?Math.min(1,0.72+(1-S.trans/100)*0.28):1;
+  const r=S.size*sc, glowR=S.glow*sc;
+
+  if(S.tags.tEll){
+    ctx.save();
+    ctx.strokeStyle=`rgba(255,255,255,${isAR?0.06:0.09})`;
+    ctx.lineWidth=sc;ctx.setLineDash([4*sc,10*sc]);
+    ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.stroke();
+    ctx.setLineDash([]);ctx.restore();
+  }
+
+  for(let i=0;i<S.items;i++){
+    const angle=(Math.PI*2/S.items)*i-Math.PI/2;
+    const x=cx+rx*Math.cos(angle), y=cy+ry*Math.sin(angle);
+    const item=ITEMS[i%ITEMS.length];
+    ctx.save();ctx.globalAlpha=uiA;
+    if(isAR&&glowR>0){
+      const gg=ctx.createRadialGradient(x,y,r*0.4,x,y,r+glowR);
+      gg.addColorStop(0,item.color+'aa');gg.addColorStop(1,item.color+'00');
+      ctx.fillStyle=gg;ctx.beginPath();ctx.arc(x,y,r+glowR,0,Math.PI*2);ctx.fill();
+    }
+    ctx.fillStyle=isAR?'rgba(0,4,12,0.74)':'rgba(0,0,0,0.72)';
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle=item.color;ctx.lineWidth=1.5*sc;ctx.stroke();
+    ctx.font=`${r*0.72}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillStyle='#fff';ctx.fillText(item.icon,x,y-r*0.12);
+    ctx.font=`${r*0.38}px Arial`;ctx.fillStyle=isAR?'#ddeeff':'#ccc';
+    ctx.fillText(item.label,x,y+r*0.52);
+    ctx.restore();
+  }
+}
+
+// ── v4B 錨點延伸 ─────────────────────────────────────────
+function drawAnchors(ctx,cx,cy,rx,ry,sc=1){
+  const isAR=S.mode!=='private';
+  const bgA=0.78;
+  const ext=28*sc, fs=11*sc;
+
+  Object.entries(ANCHOR_ANGLES).forEach(([key,angle])=>{
+    const info=ANCHOR_INFO[key];
+    const ax=cx+rx*Math.cos(angle), ay=cy+ry*Math.sin(angle);
+    const nx=Math.cos(angle), ny=Math.sin(angle);
+    const bx=ax+nx*ext, by=ay+ny*ext;
+
+    ctx.save();
+    ctx.strokeStyle=info.color+'55';ctx.lineWidth=0.8*sc;ctx.setLineDash([3*sc,5*sc]);
+    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle=info.color;ctx.globalAlpha=0.65;
+    ctx.beginPath();ctx.arc(ax,ay,3*sc,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=1;
+
+    const lineH=fs*1.5;
+    const bw=Math.max(...info.lines.map(l=>l.length))*fs*0.6+fs*1.2;
+    const bh=info.lines.length*lineH+fs*0.45;
+    const pilR=bh/2;
+    const tx=nx>0?bx:bx-bw, ty=ny>0?by:by-bh;
+
+    ctx.globalAlpha=bgA*0.82;ctx.fillStyle='#010408';
+    rr(ctx,tx,ty,bw,bh,pilR);ctx.fill();
+    ctx.globalAlpha=0.55;ctx.strokeStyle=info.color;ctx.lineWidth=sc;
+    rr(ctx,tx,ty,bw,bh,pilR);ctx.stroke();
+    ctx.globalAlpha=0.6;ctx.fillStyle=info.color;
+    ctx.beginPath();
+    if(nx>0) ctx.arc(tx+pilR,ty+bh/2,pilR,0,Math.PI*2);
+    else ctx.arc(tx+bw-pilR,ty+bh/2,pilR,0,Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha=1;
+    info.lines.forEach((line,i)=>{
+      ctx.font=`${i===0?'bold ':' '}${fs}px Arial`;
+      ctx.fillStyle=i===0?'#fff':'#aabbc0';ctx.textAlign='left';
+      const lx=nx>0?tx+pilR*2+fs*0.15:tx+fs*0.3;
+      ctx.fillText(line,lx,ty+lineH*(i+0.75));
+    });
+    ctx.restore();
+  });
+}
+
+// ── 視窗類型繪製 ─────────────────────────────────────────
+
+// 示範視窗內容（文字模擬）
+function drawWindowContent(ctx, x, y, w, h, sc=1){
+  const fs=10*sc, lh=fs*1.65, pad=fs*0.9;
+  const lines=[
+    {t:'📡 黑足貓 · 導航模式', bold:true, color:'#7ec8e3'},
+    {t:'目的地：台中國立美術館', bold:false, color:'#ddd'},
+    {t:'剩餘距離：2.4 km', bold:false, color:'#bbb'},
+    {t:'預計到達：17:08', bold:false, color:'#bbb'},
+    {t:'步行 ▸ 右轉中港路', bold:false, color:'#4caf50'},
+  ];
+  ctx.save();
+  ctx.beginPath();ctx.rect(x,y,w,h);ctx.clip();
+  lines.slice(0, Math.floor((h-pad*2)/lh)).forEach((line,i)=>{
+    ctx.font=`${line.bold?'bold ':' '}${fs}px Arial`;
+    ctx.fillStyle=line.color;ctx.textAlign='left';
+    ctx.fillText(line.t, x+pad, y+pad+fs*0.8+i*lh);
+  });
+  ctx.restore();
+}
+
+// 視窗 A：弧形面板
+function drawArcPanel(ctx, cx, cy, sc=1){
+  const w=S.winW*sc, h=S.winH*sc;
+  const x=cx-w/2, y=cy+70*sc; // 錨定在視野下方中央
+  const r=Math.min(S.rad*sc, h/2);
+  const arc=S.arc*sc;
+  const bgA=S.winAlpha/100;
+  const isAR=S.mode!=='private';
+  const accentColor='#2196f3';
+
+  ctx.save();
+  // 光暈
+  if(isAR&&S.glow>4){
+    const gg=ctx.createRadialGradient(x+w/2,y+h/2,0,x+w/2,y+h/2,Math.max(w,h)*0.7);
+    gg.addColorStop(0,accentColor+'18');gg.addColorStop(1,accentColor+'00');
+    ctx.fillStyle=gg;ctx.fillRect(x-S.glow*sc,y-S.glow*sc,w+S.glow*sc*2,h+S.glow*sc*2);
+  }
+
+  // 弧形背景（頂部弧線向內凹）
+  ctx.globalAlpha=bgA;
+  ctx.fillStyle='rgba(5,10,20,0.92)';
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  // 頂部弧線（橢圓 principle：頂部向內凹 arc px）
+  ctx.quadraticCurveTo(x+w/2, y+arc, x+w-r, y);
+  ctx.arcTo(x+w, y, x+w, y+r, r);
+  ctx.lineTo(x+w, y+h-r);
+  ctx.arcTo(x+w, y+h, x+w-r, y+h, r);
+  // 底部弧線（向外凸）
+  ctx.quadraticCurveTo(x+w/2, y+h-arc, x+r, y+h);
+  ctx.arcTo(x, y+h, x, y+h-r, r);
+  ctx.lineTo(x, y+r);
+  ctx.arcTo(x, y, x+r, y, r);
+  ctx.closePath();ctx.fill();
+
+  // 邊框
+  ctx.globalAlpha=0.55;ctx.strokeStyle=accentColor;ctx.lineWidth=1*sc;
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.quadraticCurveTo(x+w/2, y+arc, x+w-r, y);
+  ctx.arcTo(x+w, y, x+w, y+r, r);
+  ctx.lineTo(x+w, y+h-r);
+  ctx.arcTo(x+w, y+h, x+w-r, y+h, r);
+  ctx.quadraticCurveTo(x+w/2, y+h-arc, x+r, y+h);
+  ctx.arcTo(x, y+h, x, y+h-r, r);
+  ctx.lineTo(x, y+r);
+  ctx.arcTo(x, y, x+r, y, r);
+  ctx.closePath();ctx.stroke();
+
+  // 頂部色條
+  ctx.globalAlpha=0.7;ctx.fillStyle=accentColor;
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.quadraticCurveTo(x+w/2,y+arc,x+w-r,y);
+  ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+fs*sc*2.2);
+  ctx.lineTo(x,y+fs*sc*2.2);
+  ctx.lineTo(x,y+r);
+  ctx.arcTo(x,y,x+r,y,r);
+  ctx.closePath();ctx.fill();
+
+  const fs=10*sc;
+  ctx.globalAlpha=1;
+  ctx.font=`bold ${fs*1.1}px Arial`;ctx.fillStyle='#fff';ctx.textAlign='center';
+  ctx.fillText('🗺️  導航面板',x+w/2,y+fs*1.55);
+
+  // 內容
+  ctx.globalAlpha=1;
+  drawWindowContent(ctx,x,y+fs*2.5,w,h-fs*2.5,sc);
+
+  // Principle 標示
+  if(S.tags.tPrin){
+    ctx.globalAlpha=0.4;ctx.strokeStyle='#7ec8e3';ctx.lineWidth=0.6*sc;ctx.setLineDash([3*sc,6*sc]);
+    ctx.beginPath();ctx.ellipse(x+w/2,y+h/2,w/2+10*sc,h/2+10*sc,0,0,Math.PI*2);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font=`${8*sc}px Arial`;ctx.fillStyle='rgba(126,200,227,0.4)';
+    ctx.fillText('橢圓 Principle 管轄容器邊界',x+w/2,y+h+15*sc);
+  }
+  ctx.restore();
+}
+
+// 視窗 B：氣泡卡片
+function drawBubbleCard(ctx, cx, cy, rx, ry, sc=1){
+  // 從頂部錨點延伸的大型氣泡
+  const angle=-Math.PI/2+0.3; // 右上方的橢圓位置
+  const ax=cx+rx*Math.cos(angle), ay=cy+ry*Math.sin(angle);
+  const nx=Math.cos(angle), ny=Math.sin(angle);
+  const ext=40*sc;
+  const bx=ax+nx*ext, by=ay+ny*ext;
+
+  const w=S.winW*sc*0.85, h=S.winH*sc*0.85;
+  const pilR=Math.min(S.rad*sc, w/3);
+  const tx=bx+nx*w*0.1, ty=by-h/2;
+  const bgA=S.winAlpha/100;
+  const accentColor='#9c27b0';
+  const isAR=S.mode!=='private';
+
+  ctx.save();
+  // 連接線
+  ctx.strokeStyle=accentColor+'66';ctx.lineWidth=1*sc;ctx.setLineDash([3*sc,5*sc]);
+  ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();
+  ctx.setLineDash([]);
+  // 錨點
+  ctx.fillStyle=accentColor;ctx.globalAlpha=0.7;
+  ctx.beginPath();ctx.arc(ax,ay,4*sc,0,Math.PI*2);ctx.fill();
+
+  // 光暈
+  if(isAR&&S.glow>4){
+    const gg=ctx.createRadialGradient(tx+w/2,ty+h/2,0,tx+w/2,ty+h/2,Math.max(w,h)*0.7);
+    gg.addColorStop(0,accentColor+'18');gg.addColorStop(1,accentColor+'00');
+    ctx.fillStyle=gg;ctx.globalAlpha=1;ctx.fillRect(tx-S.glow*sc,ty-S.glow*sc,w+S.glow*sc*2,h+S.glow*sc*2);
+  }
+
+  // 氣泡背景（純圓角，pilR更大 → 更接近氣泡感）
+  ctx.globalAlpha=bgA;ctx.fillStyle='rgba(5,8,18,0.9)';
+  rr(ctx,tx,ty,w,h,pilR);ctx.fill();
+  ctx.globalAlpha=0.55;ctx.strokeStyle=accentColor;ctx.lineWidth=1*sc;
+  rr(ctx,tx,ty,w,h,pilR);ctx.stroke();
+
+  // 頂部色條（也是圓角）
+  const fs=10*sc;
+  ctx.globalAlpha=0.65;ctx.fillStyle=accentColor;
+  rr(ctx,tx,ty,w,fs*2.4,pilR);ctx.fill();
+  ctx.globalAlpha=1;
+  ctx.font=`bold ${fs*1.1}px Arial`;ctx.fillStyle='#fff';ctx.textAlign='center';
+  ctx.fillText('💬  訊息中心',tx+w/2,ty+fs*1.6);
+
+  // 圓形頭像示意
+  [[0.2,'#4caf50','A'],[0.5,'#2196f3','B'],[0.8,'#ff9800','C']].forEach(([xr,col,name])=>{
+    const ix=tx+w*xr, iy=ty+fs*4;
+    ctx.fillStyle=col;ctx.globalAlpha=0.8;
+    ctx.beginPath();ctx.arc(ix,iy,fs*1.2,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=1;ctx.font=`bold ${fs}px Arial`;ctx.fillStyle='#fff';
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(name,ix,iy);
+    ctx.textBaseline='alphabetic';
+  });
+
+  drawWindowContent(ctx,tx,ty+fs*5.5,w,h-fs*5.8,sc);
+
+  if(S.tags.tPrin){
+    ctx.globalAlpha=0.3;ctx.strokeStyle='#9c27b0';ctx.lineWidth=0.6*sc;ctx.setLineDash([3*sc,6*sc]);
+    ctx.beginPath();ctx.ellipse(tx+w/2,ty+h/2,w/2+8*sc,h/2+8*sc,0,0,Math.PI*2);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font=`${8*sc}px Arial`;ctx.fillStyle='rgba(156,39,176,0.4)';ctx.textAlign='center';
+    ctx.fillText('橢圓 Principle 管轄容器',tx+w/2,ty+h+14*sc);
+  }
+  ctx.restore();
+}
+
+// 視窗 C：透明疊層
+function drawOverlay(ctx, cx, cy, rx, ry, sc=1){
+  const isAR=S.mode!=='private';
+  const bgA=S.winAlpha/100*0.5; // 更透明
+  const accentColor='#4caf50';
+  const fs=11*sc;
+
+  // 導航箭頭（疊加在現實世界）
+  const arrowCx=cx, arrowCy=cy+80*sc;
+  ctx.save();
+  // 箭頭主體
+  ctx.globalAlpha=0.9;
+  ctx.fillStyle=accentColor;
+  ctx.beginPath();
+  ctx.moveTo(arrowCx, arrowCy-30*sc);
+  ctx.lineTo(arrowCx+18*sc, arrowCy+10*sc);
+  ctx.lineTo(arrowCx+8*sc, arrowCy+5*sc);
+  ctx.lineTo(arrowCx+8*sc, arrowCy+30*sc);
+  ctx.lineTo(arrowCx-8*sc, arrowCy+30*sc);
+  ctx.lineTo(arrowCx-8*sc, arrowCy+5*sc);
+  ctx.lineTo(arrowCx-18*sc, arrowCy+10*sc);
+  ctx.closePath();ctx.fill();
+  // 漸層消散效果
+  const grd=ctx.createRadialGradient(arrowCx,arrowCy,0,arrowCx,arrowCy,50*sc);
+  grd.addColorStop(0,accentColor+'00');
+  grd.addColorStop(0.7,accentColor+'00');
+  grd.addColorStop(1,accentColor+'44');
+  ctx.fillStyle=grd;ctx.beginPath();ctx.arc(arrowCx,arrowCy,50*sc,0,Math.PI*2);ctx.fill();
+
+  // 物件標籤（無邊框，漸層消散）
+  const labels=[
+    {x:cx-180*sc, y:cy-60*sc, text:'🏛️ 台中市政府', sub:'距離 0.8km', col:'#ff9800'},
+    {x:cx+160*sc, y:cy+20*sc, text:'☕ 星巴克', sub:'營業中', col:'#4caf50'},
+    {x:cx-140*sc, y:cy+100*sc, text:'🚌 公車站', sub:'2分鐘後到站', col:'#2196f3'},
+  ];
+
+  labels.forEach(lb=>{
+    // 漸層消散（無邊框）
+    const lg=ctx.createLinearGradient(lb.x,lb.y-fs,lb.x,lb.y+fs*2.5);
+    lg.addColorStop(0,lb.col+'00');
+    lg.addColorStop(0.3,lb.col+'22');
+    lg.addColorStop(0.7,lb.col+'22');
+    lg.addColorStop(1,lb.col+'00');
+    ctx.globalAlpha=1;ctx.fillStyle=lg;
+    ctx.fillRect(lb.x-fs*0.5,lb.y-fs,fs*8,fs*3);
+
+    ctx.font=`bold ${fs}px Arial`;ctx.fillStyle=lb.col;ctx.textAlign='left';
+    ctx.fillText(lb.text,lb.x,lb.y);
+    ctx.font=`${fs*0.82}px Arial`;ctx.fillStyle='rgba(200,220,230,0.7)';
+    ctx.fillText(lb.sub,lb.x,lb.y+fs*1.3);
+  });
+
+  // 弧形文字排版示意（橢圓 principle 在文字層的體現）
+  if(S.tags.tPrin){
+    ctx.globalAlpha=0.3;
+    const textArc=ctx.createLinearGradient(cx-120*sc,cy-30*sc,cx+120*sc,cy-30*sc);
+    textArc.addColorStop(0,'rgba(76,175,80,0)');
+    textArc.addColorStop(0.5,'rgba(76,175,80,0.5)');
+    textArc.addColorStop(1,'rgba(76,175,80,0)');
+    ctx.fillStyle=textArc;ctx.fillRect(cx-120*sc,cy-50*sc,240*sc,20*sc);
+    ctx.font=`${8*sc}px Arial`;ctx.fillStyle='rgba(76,175,80,0.5)';ctx.textAlign='center';
+    ctx.fillText('← 文字排版遵循橫向線性，橢圓 principle 體現於漸層消散邊界 →',cx,cy-38*sc);
+    ctx.globalAlpha=1;
+  }
+  ctx.restore();
+}
+
+// 矩形視窗（對照組）
+function drawRectWindow(ctx, cx, cy, sc=1){
+  const w=S.winW*sc, h=S.winH*sc;
+  const x=cx-w/2, y=cy+70*sc;
+  const bgA=S.winAlpha/100;
+  const accentColor='#f44336';
+  const isAR=S.mode!=='private';
+  ctx.save();
+  ctx.globalAlpha=bgA;ctx.fillStyle='rgba(5,10,20,0.92)';
+  ctx.fillRect(x,y,w,h); // 純矩形
+  ctx.globalAlpha=0.6;ctx.strokeStyle=accentColor;ctx.lineWidth=1*sc;
+  ctx.strokeRect(x,y,w,h);
+  const fs=10*sc;
+  ctx.globalAlpha=0.7;ctx.fillStyle=accentColor;
+  ctx.fillRect(x,y,w,fs*2.4);
+  ctx.globalAlpha=1;ctx.font=`bold ${fs*1.1}px Arial`;ctx.fillStyle='#fff';ctx.textAlign='center';
+  ctx.fillText('⚠️  傳統矩形視窗',x+w/2,y+fs*1.55);
+  drawWindowContent(ctx,x,y+fs*2.5,w,h-fs*2.5,sc);
+  // 衝突標示
+  if(S.tags.tPrin){
+    ctx.globalAlpha=0.5;ctx.strokeStyle='#f44336';ctx.lineWidth=1*sc;ctx.setLineDash([2*sc,4*sc]);
+    // 四角尖銳衝突點
+    [[x,y],[x+w,y],[x,y+h],[x+w,y+h]].forEach(([px,py])=>{
+      ctx.beginPath();ctx.arc(px,py,8*sc,0,Math.PI*2);ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    ctx.font=`${8*sc}px Arial`;ctx.fillStyle='rgba(244,67,54,0.6)';ctx.textAlign='center';
+    ctx.fillText('⚠ 直角與橢圓 principle 衝突',x+w/2,y+h+14*sc);
+  }
+  ctx.restore();
+}
+
+// ── 幾何語言分析 ──────────────────────────────────────────
+function drawGeoAnalysis(ctx,w,h){
+  ctx.fillStyle='#03050c';ctx.fillRect(0,0,w,h);
+  ctx.font='10px Arial';ctx.fillStyle='rgba(126,200,227,0.5)';ctx.textAlign='center';
+  ctx.fillText('橢圓 Principle 管轄範圍',w/2,16);
+
+  const items=[
+    {label:'UI 物件形狀',  ok:[1,2,3], note:'圓形 pill 弧形'},
+    {label:'空間分佈方式', ok:[1,2,3], note:'極座標錨點'},
+    {label:'動畫軌跡',    ok:[1,2,3], note:'沿橢圓弧移動'},
+    {label:'視窗邊界',    ok:[1,2,3], note:'圓角 弧形 消散'},
+    {label:'文字排版',    ok:[],      note:'線性橫排（不變）'},
+    {label:'表格列表',    ok:[],      note:'矩形結構（不變）'},
+    {label:'圖片比例',    ok:[],      note:'原始比例（不變）'},
+  ];
+
+  const sy=30, sh=26, wc=WIN_COLORS;
+  items.forEach((item,i)=>{
+    const y=sy+i*sh;
+    ctx.fillStyle=item.ok.length>0?'#0d1a0d':'#0d0d18';
+    ctx.fillRect(8,y,w-16,sh-3);
+
+    ctx.font='9px Arial';
+    ctx.fillStyle=item.ok.length>0?'#4caf50':'#556';
+    ctx.textAlign='left';ctx.fillText(item.ok.length>0?'✓':'–',14,y+sh*0.68);
+
+    ctx.fillStyle=item.ok.length>0?'#cce':'#556';
+    ctx.fillText(item.label,26,y+sh*0.68);
+
+    // 視窗類型適用標示
+    [0,1,2,3].forEach((wi)=>{
+      const wx=w-80+wi*18;
+      const applies = wi===0 ? item.ok.includes(0)||item.label.includes('文字')||item.label.includes('表格')||item.label.includes('圖片') :
+                      wi===1 ? item.ok.includes(1)||item.label.includes('文字')||item.label.includes('表格')||item.label.includes('圖片') :
+                      wi===2 ? item.ok.includes(2)||item.label.includes('文字')||item.label.includes('表格')||item.label.includes('圖片') :
+                               item.ok.includes(3)||item.label.includes('文字')||item.label.includes('表格')||item.label.includes('圖片');
+      ctx.fillStyle=applies?(S.win===wi?wc[wi]:'#223'):'#111';
+      ctx.beginPath();ctx.arc(wx,y+sh*0.5,5,0,Math.PI*2);ctx.fill();
+    });
+
+    ctx.fillStyle='#334';ctx.textAlign='right';
+    ctx.fillText(item.note,w-85,y+sh*0.68);
+  });
+
+  // 圖例
+  const ly=sy+items.length*sh+10;
+  ctx.font='8px Arial';ctx.textAlign='left';
+  ['矩形','弧形','氣泡','疊層'].forEach((name,i)=>{
+    const lx=8+i*50;
+    ctx.fillStyle=S.win===i?wc[i]:wc[i]+'66';
+    ctx.beginPath();ctx.arc(lx+4,ly+5,4,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=S.win===i?wc[i]:'#445';
+    ctx.fillText(name,lx+10,ly+9);
+  });
+
+  ctx.fillStyle='rgba(126,200,227,0.3)';ctx.textAlign='center';ctx.font='9px Arial';
+  ctx.fillText('● = 該視窗類型遵循 principle  · ○ = 不適用',w/2,h-6);
+}
+
+// ── 四類型對比 ───────────────────────────────────────────
+function drawCompare(ctx,w,h){
+  ctx.fillStyle='#03050c';ctx.fillRect(0,0,w,h);
+  const cw=w/2, ch=h/2;
+  const labels=['傳統矩形','A 弧形面板','B 氣泡卡片','C 透明疊層'];
+  const wColors=WIN_COLORS;
+
+  for(let i=0;i<4;i++){
+    const col=i%2, row=Math.floor(i/2);
+    const ox=col*cw, oy=row*ch;
+    ctx.save();ctx.beginPath();ctx.rect(ox+1,oy+1,cw-2,ch-2);ctx.clip();
+    ctx.fillStyle=S.mode==='private'?'#020204':'#081020';ctx.fillRect(ox,oy,cw,ch);
+
+    const mcx=ox+cw/2, mcy=oy+ch/2;
+    const mrx=(cw/2-8)*0.72, mry=(ch/2-8)*0.72;
+    const msc=0.38;
+
+    // 迷你橢圓
+    ctx.strokeStyle='rgba(255,255,255,0.07)';ctx.lineWidth=0.6;ctx.setLineDash([3,7]);
+    ctx.beginPath();ctx.ellipse(mcx,mcy,mrx,mry,0,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+
+    // 迷你極座標物件
+    for(let j=0;j<6;j++){
+      const ang=(Math.PI*2/6)*j-Math.PI/2;
+      const px=mcx+mrx*Math.cos(ang), py=mcy+mry*Math.sin(ang);
+      const item=ITEMS[j%ITEMS.length];
+      ctx.fillStyle='rgba(0,0,0,0.7)';ctx.beginPath();ctx.arc(px,py,6,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=item.color;ctx.lineWidth=0.8;ctx.stroke();
+      ctx.font='6px Arial';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillStyle='#fff';ctx.fillText(item.icon,px,py);ctx.textBaseline='alphabetic';
+    }
+
+    // 各視窗示意
+    const mw=cw*0.55, mh=ch*0.42;
+    const mx=mcx-mw/2, my=mcy+12;
+    if(i===0){
+      // 純矩形
+      ctx.globalAlpha=0.7;ctx.fillStyle='rgba(5,8,15,0.85)';ctx.fillRect(mx,my,mw,mh);
+      ctx.strokeStyle=wColors[0]+'88';ctx.lineWidth=0.8;ctx.strokeRect(mx,my,mw,mh);
+      ctx.globalAlpha=0.6;ctx.fillStyle=wColors[0];ctx.fillRect(mx,my,mw,10);
+      ctx.globalAlpha=1;ctx.font='7px Arial';ctx.fillStyle='#aaa';ctx.textAlign='center';
+      ctx.fillText('標題列',mcx,my+7);
+      ctx.fillStyle='#667';ctx.fillText('文字內容 ─────',mcx,my+20);
+      ctx.fillText('文字內容 ────',mcx,my+30);
+    } else if(i===1){
+      // 弧形（頂底弧線）
+      const pilR2=6;
+      ctx.globalAlpha=0.7;ctx.fillStyle='rgba(5,8,15,0.85)';
+      ctx.beginPath();
+      ctx.moveTo(mx+pilR2,my);
+      ctx.quadraticCurveTo(mcx,my+8,mx+mw-pilR2,my);
+      ctx.arcTo(mx+mw,my,mx+mw,my+pilR2,pilR2);
+      ctx.lineTo(mx+mw,my+mh-pilR2);
+      ctx.arcTo(mx+mw,my+mh,mx+mw-pilR2,my+mh,pilR2);
+      ctx.quadraticCurveTo(mcx,my+mh-8,mx+pilR2,my+mh);
+      ctx.arcTo(mx,my+mh,mx,my+mh-pilR2,pilR2);
+      ctx.lineTo(mx,my+pilR2);ctx.arcTo(mx,my,mx+pilR2,my,pilR2);ctx.closePath();ctx.fill();
+      ctx.strokeStyle=wColors[1]+'88';ctx.lineWidth=0.8;ctx.stroke();
+      ctx.globalAlpha=0.6;ctx.fillStyle=wColors[1];
+      ctx.beginPath();ctx.moveTo(mx+pilR2,my);ctx.quadraticCurveTo(mcx,my+8,mx+mw-pilR2,my);
+      ctx.arcTo(mx+mw,my,mx+mw,my+pilR2,pilR2);ctx.lineTo(mx+mw,my+10);
+      ctx.lineTo(mx,my+10);ctx.lineTo(mx,my+pilR2);ctx.arcTo(mx,my,mx+pilR2,my,pilR2);ctx.closePath();ctx.fill();
+      ctx.globalAlpha=1;ctx.font='7px Arial';ctx.fillStyle='#aaa';ctx.textAlign='center';
+      ctx.fillText('弧形標題',mcx,my+7);
+      ctx.fillStyle='#667';ctx.fillText('文字內容 ─────',mcx,my+20);
+    } else if(i===2){
+      // 氣泡（大圓角）
+      const br=mh/2;
+      ctx.globalAlpha=0.7;ctx.fillStyle='rgba(5,8,15,0.88)';
+      rr(ctx,mx,my,mw,mh,br);ctx.fill();
+      ctx.strokeStyle=wColors[2]+'88';ctx.lineWidth=0.8;
+      rr(ctx,mx,my,mw,mh,br);ctx.stroke();
+      ctx.globalAlpha=0.6;ctx.fillStyle=wColors[2];
+      rr(ctx,mx,my,mw,10,Math.min(5,br));ctx.fill();
+      ctx.globalAlpha=1;ctx.font='7px Arial';ctx.fillStyle='#aaa';ctx.textAlign='center';
+      ctx.fillText('氣泡標題',mcx,my+7);
+      // 小圓圈
+      [[0.25,'#4caf50'],[0.5,'#2196f3'],[0.75,'#ff9800']].forEach(([xr,col])=>{
+        ctx.fillStyle=col;ctx.beginPath();ctx.arc(mx+mw*xr,my+22,5,0,Math.PI*2);ctx.fill();
+      });
+    } else {
+      // 透明疊層（漸層消散）
+      // 箭頭
+      ctx.globalAlpha=0.85;ctx.fillStyle=wColors[3];
+      ctx.beginPath();ctx.moveTo(mcx,my-5);ctx.lineTo(mcx+8,my+10);ctx.lineTo(mcx+4,my+8);
+      ctx.lineTo(mcx+4,my+mh*0.7);ctx.lineTo(mcx-4,my+mh*0.7);ctx.lineTo(mcx-4,my+8);
+      ctx.lineTo(mcx-8,my+10);ctx.closePath();ctx.fill();
+      // 漸層標籤
+      const lg2=ctx.createLinearGradient(mx,my+mh*0.5,mx+mw,my+mh*0.5);
+      lg2.addColorStop(0,wColors[3]+'00');lg2.addColorStop(0.3,wColors[3]+'33');
+      lg2.addColorStop(0.7,wColors[3]+'33');lg2.addColorStop(1,wColors[3]+'00');
+      ctx.globalAlpha=1;ctx.fillStyle=lg2;ctx.fillRect(mx,my+mh*0.5,mw,14);
+      ctx.font='7px Arial';ctx.fillStyle=wColors[3];ctx.textAlign='left';
+      ctx.fillText('物件標籤',mx+6,my+mh*0.5+10);
+      ctx.fillStyle='rgba(180,200,220,0.6)';ctx.fillText('0.5km',mx+6,my+mh*0.5+20);
+    }
+
+    // 框線和標籤
+    const isAct=S.win===i;
+    ctx.strokeStyle=isAct?wColors[i]:'#141824';ctx.lineWidth=isAct?1.8:0.7;
+    ctx.strokeRect(ox+0.5,oy+0.5,cw-1,ch-1);
+    ctx.fillStyle=isAct?wColors[i]:'#334';
+    ctx.font=`${isAct?'bold ':''}9px Arial`;ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(labels[i],ox+cw/2,oy+3);ctx.textBaseline='alphabetic';
+    ctx.restore();
+  }
+}
+
+// ── 主繪製 ───────────────────────────────────────────────
+function draw(){
+  const W=864,H=540,EW=432,EH=270;
+  const mainCtx=document.getElementById('mainCanvas').getContext('2d');
+  const eyeCtx =document.getElementById('eyeCanvas').getContext('2d');
+  const geoCtx =document.getElementById('geoCanvas').getContext('2d');
+  const cmpCtx =document.getElementById('cmpCanvas').getContext('2d');
+
+  const isAR=S.mode!=='private';
+  drawBg(mainCtx,W,H);
+  const cx=W/2,cy=H/2;
+  const rx=(W/2-28)*S.ellipse, ry=(H/2-28)*S.ellipse;
+
+  if(S.tags.tFov){
+    mainCtx.save();
+    mainCtx.strokeStyle=isAR?'rgba(100,200,255,0.08)':'rgba(255,255,0,0.08)';
+    mainCtx.lineWidth=1;mainCtx.setLineDash([6,14]);
+    mainCtx.strokeRect(18,18,W-36,H-36);mainCtx.setLineDash([]);
+    mainCtx.font='10px Arial';mainCtx.fillStyle=isAR?'rgba(100,200,255,0.2)':'rgba(255,255,0,0.2)';
+    mainCtx.fillText('52° FOV · 透光率 '+S.trans+'%',24,32);
+    mainCtx.restore();
+  }
+  if(S.tags.tGaze){
+    mainCtx.save();
+    mainCtx.strokeStyle='rgba(255,255,255,0.12)';mainCtx.lineWidth=1;
+    const cl=14;
+    mainCtx.beginPath();mainCtx.moveTo(cx-cl,cy);mainCtx.lineTo(cx+cl,cy);
+    mainCtx.moveTo(cx,cy-cl);mainCtx.lineTo(cx,cy+cl);mainCtx.stroke();
+    mainCtx.beginPath();mainCtx.arc(cx,cy,3,0,Math.PI*2);
+    mainCtx.fillStyle='rgba(255,255,255,0.28)';mainCtx.fill();
+    mainCtx.restore();
+  }
+  if(S.tags.tGrid){
+    mainCtx.save();mainCtx.strokeStyle='rgba(255,255,255,0.03)';mainCtx.lineWidth=0.5;
+    for(let x=0;x<W;x+=W/8){mainCtx.beginPath();mainCtx.moveTo(x,0);mainCtx.lineTo(x,H);mainCtx.stroke();}
+    for(let y=0;y<H;y+=H/6){mainCtx.beginPath();mainCtx.moveTo(0,y);mainCtx.lineTo(W,y);mainCtx.stroke();}
+    mainCtx.restore();
+  }
+
+  // 極座標環形 UI（始終顯示）
+  drawPolarUI(mainCtx,cx,cy,rx,ry,1);
+
+  // v4B 錨點延伸（始終顯示）
+  if(S.tags.tAnc) drawAnchors(mainCtx,cx,cy,rx,ry,1);
+
+  // 應用程式視窗
+  if(S.win===0) drawRectWindow(mainCtx,cx,cy,1);
+  else if(S.win===1) drawArcPanel(mainCtx,cx,cy,1);
+  else if(S.win===2) drawBubbleCard(mainCtx,cx,cy,rx,ry,1);
+  else drawOverlay(mainCtx,cx,cy,rx,ry,1);
+
+  if(isAR&&S.trans>28){
+    mainCtx.save();mainCtx.strokeStyle='rgba(255,150,0,0.25)';mainCtx.lineWidth=1.2;mainCtx.setLineDash([4,8]);
+    mainCtx.strokeRect(8,8,W-16,H-16);mainCtx.setLineDash([]);
+    mainCtx.font='10px Arial';mainCtx.fillStyle='rgba(255,150,0,0.45)';mainCtx.textAlign='center';
+    mainCtx.fillText('⚠ 高透光率：建議增強光暈',W/2,H-10);mainCtx.restore();
+  }
+
+  // 單眼視角
+  drawBg(eyeCtx,EW,EH);
+  const erx=(EW/2-14)*S.ellipse, ery=(EH/2-14)*S.ellipse;
+  drawPolarUI(eyeCtx,EW/2,EH/2,erx,ery,0.5);
+  if(S.tags.tAnc) drawAnchors(eyeCtx,EW/2,EH/2,erx,ery,0.5);
+  if(S.win===0) drawRectWindow(eyeCtx,EW/2,EH/2,0.5);
+  else if(S.win===1) drawArcPanel(eyeCtx,EW/2,EH/2,0.5);
+  else if(S.win===2) drawBubbleCard(eyeCtx,EW/2,EH/2,erx,ery,0.5);
+  else drawOverlay(eyeCtx,EW/2,EH/2,erx,ery,0.5);
+  const pb=eyeCtx.createRadialGradient(EW/2,EH/2,EH*0.14,EW/2,EH/2,EH*0.88);
+  pb.addColorStop(0,'rgba(0,0,0,0)');pb.addColorStop(0.5,'rgba(0,0,0,0)');pb.addColorStop(1,'rgba(0,0,0,0.42)');
+  eyeCtx.fillStyle=pb;eyeCtx.fillRect(0,0,EW,EH);
+  eyeCtx.font='9px Arial';eyeCtx.fillStyle='rgba(200,200,100,0.35)';
+  eyeCtx.textAlign='center';eyeCtx.fillText('周邊辨識 60–75%',EW/2,EH-6);
+
+  drawGeoAnalysis(geoCtx,EW,EH);
+  drawCompare(cmpCtx,EW,EH);
+  updateEval();
+}
+
+function updateEval(){
+  const {win,ellipse,mode,trans,winAlpha} = S;
+  const isAR=mode!=='private';
+  const names=['傳統矩形','A 弧形面板','B 氣泡卡片','C 透明疊層'];
+  const nc=WIN_COLORS;
+  let html=`<span style="color:${nc[win]}">◉ ${names[win]}</span><br><br>`;
+
+  if(win===0){
+    html+=`<span class="iss">幾何衝突：直角破壞橢圓語言</span><br>`;
+    html+=`<span class="warn">沉浸感最低，電腦螢幕碎片感</span>`;
+  } else if(win===1){
+    html+=`<span class="ok">✓ 弧形頂底消除直角衝突</span><br>`;
+    html+=`<span class="ok">✓ 適合中等資訊量面板</span><br>`;
+    html+=`<span class="warn">固定位置，靈活度較低</span>`;
+  } else if(win===2){
+    html+=`<span class="ok">✓ 從錨點延伸，空間邏輯一致</span><br>`;
+    html+=`<span class="ok">✓ 大圓角接近氣泡感</span><br>`;
+    html+=`<span class="warn">資訊量受氣泡尺寸限制</span>`;
+  } else {
+    html+=`<span class="ok">✓ 零視窗邊框，沉浸感最高</span><br>`;
+    html+=`<span class="ok">✓ 漸層消散完美融入現實</span><br>`;
+    html+=`<span class="warn">不適合需要操作的介面</span>`;
+  }
+
+  html+='<br>';
+  if(isAR&&trans>28) html+=`<span class="warn">⚠ 高透光率：視窗對比度降低</span><br>`;
+  if(winAlpha<40) html+=`<span class="warn">視窗透明度過低，內容難以閱讀</span><br>`;
+  html+=`<span style="color:#334">組合建議：A+B 搭配使用，C 用於環境標注</span>`;
+  document.getElementById('evalContent').innerHTML=html;
+}
+
+setWin(0);
+sync();
+</script>
+</body>
+</html>

@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>極座標 UI v2 — VITURE Luma Ultra 透視AR模擬器</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; background: #0a0a0f; font-family: Arial, sans-serif; color: #fff; }
+.container { display: flex; flex-direction: column; align-items: center; padding: 16px; gap: 20px; }
+h1 { font-size: 16px; color: #7ec8e3; margin: 0; letter-spacing: 1px; }
+.subtitle { font-size: 11px; color: #556; margin: 0; }
+
+/* 模式切換 */
+.mode-bar { display: flex; gap: 8px; background: #111; border: 1px solid #222; border-radius: 8px; padding: 6px; }
+.mode-btn { padding: 6px 16px; border-radius: 6px; border: 1px solid #333; background: transparent; color: #777; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+.mode-btn.active { background: #17a589; border-color: #17a589; color: #fff; font-weight: bold; }
+
+/* 主區塊 */
+.main-panel { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+.canvas-wrap { display: flex; flex-direction: column; gap: 6px; }
+.canvas-label { font-size: 11px; color: #556; text-align: center; }
+canvas { border-radius: 6px; display: block; }
+
+/* 控制面板 */
+.ctrl-panel { background: #0f0f1e; border: 1px solid #1e1e3a; border-radius: 10px; padding: 16px; width: 260px; display: flex; flex-direction: column; gap: 12px; }
+.ctrl-section { border-bottom: 1px solid #1a1a2e; padding-bottom: 10px; }
+.ctrl-section:last-child { border-bottom: none; padding-bottom: 0; }
+.ctrl-title { font-size: 11px; color: #17a589; letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase; }
+.slider-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.slider-row label { font-size: 11px; color: #889; }
+.slider-row .val { font-size: 11px; color: #ccc; width: 36px; text-align: right; }
+input[type=range] { width: 120px; accent-color: #17a589; }
+.tag-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.tag { font-size: 10px; padding: 3px 8px; border-radius: 4px; cursor: pointer; border: 1px solid #333; background: #111; color: #777; }
+.tag.on { background: #17253a; border-color: #17a589; color: #7ec8e3; }
+
+/* 評估區 */
+.eval-panel { background: #0a0f1a; border: 1px solid #1a2233; border-radius: 8px; padding: 12px; font-size: 11px; line-height: 1.9; }
+.eval-panel h4 { margin: 0 0 6px 0; color: #7ec8e3; font-size: 11px; }
+.ok { color: #4caf50; }
+.warn { color: #f0a500; }
+.issue { color: #f44336; }
+.info { color: #7ec8e3; }
+
+/* 透射率指示器 */
+.trans-bar { display: flex; align-items: center; gap: 8px; }
+.trans-track { flex: 1; height: 8px; border-radius: 4px; background: linear-gradient(to right, #000, #ffffff44, #fff); border: 1px solid #333; position: relative; }
+.trans-thumb { width: 12px; height: 12px; border-radius: 50%; background: #17a589; border: 2px solid #fff; position: absolute; top: -2px; transform: translateX(-50%); transition: left 0.2s; }
+
+.bottom-panels { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div>
+    <h1>極座標 UI v2 — VITURE Luma Ultra 視覺模擬器</h1>
+    <div class="subtitle" style="text-align:center">電致變色透視 AR 模式已整合 · 透光率 0.5–40% · 切換時間 0.1s</div>
+  </div>
+
+  <!-- 模式切換 -->
+  <div class="mode-bar">
+    <button class="mode-btn active" onclick="setMode('private')">🎬 私密螢幕</button>
+    <button class="mode-btn" onclick="setMode('ar-indoor')">🏠 透視 AR（室內）</button>
+    <button class="mode-btn" onclick="setMode('ar-outdoor')">☀️ 透視 AR（戶外）</button>
+    <button class="mode-btn" onclick="setMode('ar-night')">🌙 透視 AR（夜間）</button>
+  </div>
+
+  <div class="main-panel">
+    <!-- 主視圖 -->
+    <div class="canvas-wrap">
+      <div class="canvas-label">VITURE Luma Ultra 顯示區（1920×1200 模擬，52° FOV）</div>
+      <canvas id="mainCanvas" width="864" height="540"></canvas>
+    </div>
+
+    <!-- 控制面板 -->
+    <div class="ctrl-panel">
+      <div class="ctrl-section">
+        <div class="ctrl-title">📐 橢圓參數</div>
+        <div class="slider-row">
+          <label>橢圓比例</label>
+          <input type="range" id="sEllipse" min="60" max="95" value="83" oninput="sync('sEllipse','vEllipse',v=>v+'%')">
+          <span class="val" id="vEllipse">83%</span>
+        </div>
+        <div class="slider-row">
+          <label>物件數</label>
+          <input type="range" id="sItems" min="3" max="12" value="6" oninput="sync('sItems','vItems',v=>v)">
+          <span class="val" id="vItems">6</span>
+        </div>
+        <div class="slider-row">
+          <label>物件尺寸</label>
+          <input type="range" id="sSize" min="16" max="40" value="24" oninput="sync('sSize','vSize',v=>v+'px')">
+          <span class="val" id="vSize">24px</span>
+        </div>
+      </div>
+
+      <div class="ctrl-section">
+        <div class="ctrl-title">🔆 透光率控制</div>
+        <div class="slider-row">
+          <label>透光率</label>
+          <input type="range" id="sTrans" min="1" max="40" value="5" oninput="sync('sTrans','vTrans',v=>v+'%')">
+          <span class="val" id="vTrans">5%</span>
+        </div>
+        <div class="trans-bar">
+          <span style="font-size:10px;color:#556">暗</span>
+          <div class="trans-track"><div class="trans-thumb" id="transThumb"></div></div>
+          <span style="font-size:10px;color:#556">透</span>
+        </div>
+        <div style="font-size:10px;color:#556;margin-top:4px">
+          私密模式 ≈ 0.5% · AR 室內 ≈ 15–30% · AR 戶外 ≈ 30–40%
+        </div>
+      </div>
+
+      <div class="ctrl-section">
+        <div class="ctrl-title">🎨 UI 樣式</div>
+        <div class="slider-row">
+          <label>邊框厚度</label>
+          <input type="range" id="sBorder" min="1" max="4" value="2" oninput="sync('sBorder','vBorder',v=>v+'px')">
+          <span class="val" id="vBorder">2px</span>
+        </div>
+        <div class="slider-row">
+          <label>光暈強度</label>
+          <input type="range" id="sGlow" min="0" max="20" value="8" oninput="sync('sGlow','vGlow',v=>v)">
+          <span class="val" id="vGlow">8</span>
+        </div>
+        <div class="ctrl-title" style="margin-top:8px">輔助標示</div>
+        <div class="tag-row">
+          <div class="tag on" id="tagFov" onclick="toggleTag('tagFov')">FOV 邊界</div>
+          <div class="tag on" id="tagGaze" onclick="toggleTag('tagGaze')">凝視點</div>
+          <div class="tag on" id="tagEllipse" onclick="toggleTag('tagEllipse')">橢圓輪廓</div>
+          <div class="tag" id="tagAngle" onclick="toggleTag('tagAngle')">角度標示</div>
+          <div class="tag" id="tagVignette" onclick="toggleTag('tagVignette')">周邊暗角</div>
+        </div>
+      </div>
+
+      <!-- 評估 -->
+      <div class="eval-panel">
+        <h4>⚡ 即時評估</h4>
+        <div id="evalContent">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 下方輔助視圖 -->
+  <div class="bottom-panels">
+    <div class="canvas-wrap">
+      <div class="canvas-label">單眼視角（周邊視野辨識模擬）</div>
+      <canvas id="eyeCanvas" width="432" height="270"></canvas>
+    </div>
+    <div class="canvas-wrap">
+      <div class="canvas-label">幾何分析 / 橢圓參數圖</div>
+      <canvas id="geoCanvas" width="432" height="270"></canvas>
+    </div>
+    <div class="canvas-wrap">
+      <div class="canvas-label">對比度分析（UI vs 背景）</div>
+      <canvas id="contrastCanvas" width="432" height="270"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 狀態 ───────────────────────────────────────────────────
+let state = {
+  mode: 'private',
+  ellipse: 0.83,
+  items: 6,
+  size: 24,
+  trans: 5,
+  border: 2,
+  glow: 8,
+  tags: { tagFov: true, tagGaze: true, tagEllipse: true, tagAngle: false, tagVignette: false }
+};
+
+const ITEMS = [
+  { icon:'🔋', label:'電量',  color:'#4caf50' },
+  { icon:'🎤', label:'語音',  color:'#2196f3' },
+  { icon:'📷', label:'相機',  color:'#9c27b0' },
+  { icon:'🗺️', label:'地圖',  color:'#ff9800' },
+  { icon:'⏰', label:'時間',  color:'#00bcd4' },
+  { icon:'📡', label:'連線',  color:'#8bc34a' },
+  { icon:'🌡️', label:'溫度',  color:'#f44336' },
+  { icon:'💬', label:'訊息',  color:'#e91e63' },
+  { icon:'🔊', label:'音量',  color:'#ff5722' },
+  { icon:'📊', label:'數據',  color:'#607d8b' },
+  { icon:'⚡', label:'狀態',  color:'#ffc107' },
+  { icon:'🎯', label:'焦點',  color:'#17a589' },
+];
+
+// ── 場景背景設定 ────────────────────────────────────────────
+const SCENES = {
+  'private':    { bg: '#050508', label: '私密模式（鏡片全暗）', transDef: 1,  brightness: 1.0 },
+  'ar-indoor':  { bg: 'indoor',  label: '透視 AR — 室內場景',  transDef: 20, brightness: 0.7 },
+  'ar-outdoor': { bg: 'outdoor', label: '透視 AR — 戶外強光',  transDef: 35, brightness: 0.4 },
+  'ar-night':   { bg: 'night',   label: '透視 AR — 夜間場景',  transDef: 35, brightness: 1.0 },
+};
+
+// ── 控制函式 ────────────────────────────────────────────────
+function sync(sliderId, valId, fmt) {
+  const v = document.getElementById(sliderId).value;
+  document.getElementById(valId).textContent = fmt(v);
+  state.ellipse = parseFloat(document.getElementById('sEllipse').value) / 100;
+  state.items   = parseInt(document.getElementById('sItems').value);
+  state.size    = parseInt(document.getElementById('sSize').value);
+  state.trans   = parseInt(document.getElementById('sTrans').value);
+  state.border  = parseInt(document.getElementById('sBorder').value);
+  state.glow    = parseInt(document.getElementById('sGlow').value);
+  updateTransThumb();
+  draw();
+}
+
+function setMode(m) {
+  state.mode = m;
+  document.querySelectorAll('.mode-btn').forEach((b,i) => {
+    b.className = 'mode-btn' + (['private','ar-indoor','ar-outdoor','ar-night'][i]===m?' active':'');
+  });
+  const sc = SCENES[m];
+  document.getElementById('sTrans').value = sc.transDef;
+  document.getElementById('vTrans').textContent = sc.transDef + '%';
+  state.trans = sc.transDef;
+  updateTransThumb();
+  draw();
+}
+
+function toggleTag(id) {
+  state.tags[id] = !state.tags[id];
+  document.getElementById(id).className = 'tag' + (state.tags[id] ? ' on' : '');
+  draw();
+}
+
+function updateTransThumb() {
+  const pct = (state.trans - 1) / 39 * 100;
+  document.getElementById('transThumb').style.left = pct + '%';
+}
+
+// ── 背景繪製 ────────────────────────────────────────────────
+function drawBg(ctx, w, h, mode, trans) {
+  const alpha = trans / 100;
+
+  if (mode === 'private') {
+    ctx.fillStyle = '#020205';
+    ctx.fillRect(0, 0, w, h);
+    return;
+  }
+
+  if (mode === 'ar-indoor') {
+    // 室內場景底圖
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#8ba0b5');
+    g.addColorStop(0.6, '#c4b89a');
+    g.addColorStop(1, '#6b5a3e');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    // 窗戶
+    ctx.fillStyle = '#d4e8f0';
+    ctx.fillRect(w*0.1, h*0.1, w*0.25, h*0.45);
+    ctx.fillRect(w*0.65, h*0.1, w*0.25, h*0.45);
+    // 桌子
+    ctx.fillStyle = '#8B6914';
+    ctx.fillRect(w*0.05, h*0.72, w*0.9, h*0.06);
+    ctx.fillStyle = '#7a5c10';
+    ctx.fillRect(w*0.1, h*0.78, w*0.06, h*0.22);
+    ctx.fillRect(w*0.84, h*0.78, w*0.06, h*0.22);
+    // 鏡片透明度疊加
+    ctx.fillStyle = `rgba(0,0,0,${1 - alpha * 0.9})`;
+    ctx.fillRect(0, 0, w, h);
+  } else if (mode === 'ar-outdoor') {
+    // 戶外場景
+    const sky = ctx.createLinearGradient(0, 0, 0, h * 0.55);
+    sky.addColorStop(0, '#1565c0');
+    sky.addColorStop(1, '#64b5f6');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h * 0.55);
+    ctx.fillStyle = '#2e7d32';
+    ctx.fillRect(0, h * 0.55, w, h * 0.45);
+    // 太陽
+    ctx.fillStyle = 'rgba(255,235,59,0.9)';
+    ctx.beginPath();
+    ctx.arc(w * 0.8, h * 0.15, w * 0.04, 0, Math.PI * 2);
+    ctx.fill();
+    // 雲
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    [0.15, 0.4].forEach(xr => {
+      ctx.beginPath();
+      ctx.arc(w*xr, h*0.2, w*0.05, 0, Math.PI*2);
+      ctx.arc(w*xr+w*0.04, h*0.17, w*0.04, 0, Math.PI*2);
+      ctx.fill();
+    });
+    // 強光效果：高透光率下過亮
+    const overexpose = Math.max(0, (alpha - 0.2) * 2);
+    ctx.fillStyle = `rgba(255,255,255,${overexpose * 0.3})`;
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = `rgba(0,0,0,${1 - alpha * 0.85})`;
+    ctx.fillRect(0, 0, w, h);
+  } else if (mode === 'ar-night') {
+    ctx.fillStyle = '#02040a';
+    ctx.fillRect(0, 0, w, h);
+    // 星空
+    for (let i = 0; i < 80; i++) {
+      const sx = Math.random() * w, sy = Math.random() * h * 0.7;
+      const sr = Math.random() * 1.5;
+      ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.8 + 0.2})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // 月亮
+    ctx.fillStyle = 'rgba(255,255,220,0.9)';
+    ctx.beginPath();
+    ctx.arc(w * 0.85, h * 0.12, w * 0.03, 0, Math.PI * 2);
+    ctx.fill();
+    // 路燈
+    for (let i = 0; i < 4; i++) {
+      ctx.fillStyle = 'rgba(255,200,80,0.7)';
+      ctx.beginPath();
+      ctx.arc(w * (0.1 + i * 0.27), h * 0.65, w * 0.015, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,200,80,0.15)';
+      ctx.beginPath();
+      ctx.arc(w * (0.1 + i * 0.27), h * 0.65, w * 0.06, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = `rgba(0,0,0,${1 - alpha * 1.2})`;
+    ctx.fillRect(0, 0, w, h);
+  }
+}
+
+// ── 極座標 UI 繪製 ─────────────────────────────────────────
+function drawPolarUI(ctx, cx, cy, rx, ry, n, sz, border, glow, mode, trans, scale=1) {
+  const angleStep = (Math.PI * 2) / n;
+  const isAR = mode !== 'private';
+  const alpha = trans / 100;
+  // AR模式下UI需要更高對比
+  const uiAlpha = isAR ? Math.min(1, 0.7 + (1 - alpha) * 0.3) : 1;
+  const glowR = glow * scale;
+  const bw = border * scale;
+  const r = sz * scale;
+
+  if (state.tags.tagEllipse) {
+    ctx.save();
+    ctx.strokeStyle = `rgba(255,255,255,${isAR ? 0.06 : 0.1})`;
+    ctx.lineWidth = scale;
+    ctx.setLineDash([4*scale, 10*scale]);
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  for (let i = 0; i < n; i++) {
+    const angle = angleStep * i - Math.PI / 2;
+    const x = cx + rx * Math.cos(angle);
+    const y = cy + ry * Math.sin(angle);
+    const item = ITEMS[i % ITEMS.length];
+
+    ctx.save();
+    ctx.globalAlpha = uiAlpha;
+
+    // AR模式：光暈增強對比
+    if (isAR && glowR > 0) {
+      const glowGrad = ctx.createRadialGradient(x, y, r*0.5, x, y, r + glowR);
+      glowGrad.addColorStop(0, item.color + 'aa');
+      glowGrad.addColorStop(1, item.color + '00');
+      ctx.fillStyle = glowGrad;
+      ctx.beginPath();
+      ctx.arc(x, y, r + glowR, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // 背景圓（AR模式半透明）
+    ctx.fillStyle = isAR ? 'rgba(0,5,15,0.72)' : 'rgba(0,0,0,0.7)';
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.strokeStyle = item.color;
+    ctx.lineWidth = bw;
+    ctx.stroke();
+
+    // Icon
+    ctx.globalAlpha = uiAlpha * 1.05;
+    ctx.font = `${r * 0.72}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(item.icon, x, y - r * 0.12);
+
+    // 標籤
+    ctx.font = `${r * 0.38}px Arial`;
+    ctx.fillStyle = isAR ? '#e0e8ff' : '#ccc';
+    ctx.fillText(item.label, x, y + r * 0.52);
+
+    ctx.restore();
+
+    // 角度標示
+    if (state.tags.tagAngle) {
+      const deg = Math.round(360 / n * i);
+      ctx.save();
+      ctx.font = `${9*scale}px Arial`;
+      ctx.fillStyle = 'rgba(255,255,0,0.35)';
+      ctx.textAlign = 'center';
+      const lx = cx + (rx + 18*scale) * Math.cos(angle);
+      const ly = cy + (ry + 18*scale) * Math.sin(angle);
+      ctx.fillText(deg + '°', lx, ly);
+      ctx.restore();
+    }
+  }
+}
+
+// ── 主繪製 ──────────────────────────────────────────────────
+function draw() {
+  const W = 864, H = 540, EW = 432, EH = 270;
+  const mainCtx = document.getElementById('mainCanvas').getContext('2d');
+  const eyeCtx  = document.getElementById('eyeCanvas').getContext('2d');
+  const geoCtx  = document.getElementById('geoCanvas').getContext('2d');
+  const ctrCtx  = document.getElementById('contrastCanvas').getContext('2d');
+
+  const { mode, ellipse, items, size, trans, border, glow } = state;
+  const isAR = mode !== 'private';
+
+  // ── 主畫布 ──────────────────────────────────────────────
+  drawBg(mainCtx, W, H, mode, trans);
+
+  const cx = W/2, cy = H/2;
+  const rx = (W/2 - 30) * ellipse;
+  const ry = (H/2 - 30) * ellipse;
+
+  if (state.tags.tagFov) {
+    mainCtx.save();
+    mainCtx.strokeStyle = isAR ? 'rgba(100,200,255,0.12)' : 'rgba(255,255,0,0.12)';
+    mainCtx.lineWidth = 1;
+    mainCtx.setLineDash([6,12]);
+    mainCtx.strokeRect(20, 20, W-40, H-40);
+    mainCtx.setLineDash([]);
+    mainCtx.font = '11px Arial';
+    mainCtx.fillStyle = isAR ? 'rgba(100,200,255,0.35)' : 'rgba(255,255,0,0.35)';
+    mainCtx.fillText('52° FOV · ' + SCENES[mode].label, 28, 36);
+    mainCtx.restore();
+  }
+
+  if (state.tags.tagGaze) {
+    mainCtx.save();
+    mainCtx.strokeStyle = isAR ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.2)';
+    mainCtx.lineWidth = 1;
+    const cl = 14;
+    mainCtx.beginPath();
+    mainCtx.moveTo(cx-cl,cy); mainCtx.lineTo(cx+cl,cy);
+    mainCtx.moveTo(cx,cy-cl); mainCtx.lineTo(cx,cy+cl);
+    mainCtx.stroke();
+    mainCtx.beginPath();
+    mainCtx.arc(cx, cy, 3, 0, Math.PI*2);
+    mainCtx.fillStyle = 'rgba(255,255,255,0.4)';
+    mainCtx.fill();
+    mainCtx.font = '10px Arial';
+    mainCtx.fillStyle = 'rgba(255,255,255,0.25)';
+    mainCtx.textAlign = 'center';
+    mainCtx.fillText('凝視中心', cx, cy + 20);
+    mainCtx.restore();
+  }
+
+  // AR模式：顯示邊框對比度警告
+  if (isAR && trans > 30) {
+    mainCtx.save();
+    mainCtx.strokeStyle = 'rgba(255,150,0,0.5)';
+    mainCtx.lineWidth = 2;
+    mainCtx.setLineDash([4,6]);
+    mainCtx.strokeRect(10, 10, W-20, H-20);
+    mainCtx.setLineDash([]);
+    mainCtx.font = '11px Arial';
+    mainCtx.fillStyle = 'rgba(255,150,0,0.7)';
+    mainCtx.textAlign = 'center';
+    mainCtx.fillText('⚠ 高透光率：建議增加光暈強度提升 UI 對比', W/2, H-10);
+    mainCtx.restore();
+  }
+
+  drawPolarUI(mainCtx, cx, cy, rx, ry, items, size, border, glow, mode, trans, 1);
+
+  // 周邊暗角
+  if (state.tags.tagVignette) {
+    const vg = mainCtx.createRadialGradient(cx, cy, H*0.22, cx, cy, H*0.9);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.55)');
+    mainCtx.fillStyle = vg;
+    mainCtx.fillRect(0, 0, W, H);
+  }
+
+  // ── 單眼視角 ────────────────────────────────────────────
+  drawBg(eyeCtx, EW, EH, mode, trans);
+
+  // 中央視野清晰，周邊模糊疊加
+  const erx = (EW/2-12)*ellipse, ery = (EH/2-12)*ellipse;
+  drawPolarUI(eyeCtx, EW/2, EH/2, erx, ery, items, size*0.5, border, glow*0.5, mode, trans, 0.5);
+
+  // 周邊視野辨識度模糊模擬
+  const periBlur = eyeCtx.createRadialGradient(EW/2, EH/2, EH*0.15, EW/2, EH/2, EH*0.85);
+  periBlur.addColorStop(0, 'rgba(0,0,0,0)');
+  periBlur.addColorStop(0.6, 'rgba(0,0,0,0)');
+  periBlur.addColorStop(1, 'rgba(0,0,0,0.45)');
+  eyeCtx.fillStyle = periBlur;
+  eyeCtx.fillRect(0, 0, EW, EH);
+
+  // 標示
+  eyeCtx.save();
+  eyeCtx.font = '10px Arial';
+  eyeCtx.fillStyle = 'rgba(255,200,100,0.5)';
+  eyeCtx.textAlign = 'center';
+  eyeCtx.fillText('周邊視野辨識度 ≈ 60–75%', EW/2, EH-8);
+  eyeCtx.restore();
+
+  // ── 幾何分析 ────────────────────────────────────────────
+  geoCtx.fillStyle = '#060810';
+  geoCtx.fillRect(0, 0, EW, EH);
+
+  const gcx=EW/2, gcy=EH/2;
+  const grx=(EW/2-18)*ellipse, gry=(EH/2-18)*ellipse;
+
+  geoCtx.strokeStyle='rgba(100,180,255,0.3)';
+  geoCtx.lineWidth=1; geoCtx.setLineDash([3,8]);
+  geoCtx.strokeRect(18,18,EW-36,EH-36);
+  geoCtx.setLineDash([]);
+  geoCtx.font='10px Arial';
+  geoCtx.fillStyle='rgba(100,180,255,0.4)';
+  geoCtx.fillText('矩形畫布 1920×1200（16:10）', 24, 14);
+
+  geoCtx.strokeStyle='rgba(255,200,0,0.65)';
+  geoCtx.lineWidth=1.5;
+  geoCtx.beginPath();
+  geoCtx.ellipse(gcx, gcy, grx, gry, 0, 0, Math.PI*2);
+  geoCtx.stroke();
+
+  // 半軸標示
+  geoCtx.strokeStyle='rgba(255,130,0,0.5)';
+  geoCtx.lineWidth=1;
+  geoCtx.beginPath();
+  geoCtx.moveTo(gcx,gcy); geoCtx.lineTo(gcx+grx,gcy);
+  geoCtx.stroke();
+  geoCtx.fillStyle='rgba(255,130,0,0.7)';
+  geoCtx.textAlign='center';
+  geoCtx.font='9px Arial';
+  geoCtx.fillText(`rx=${Math.round(grx*2)}px`, gcx+grx/2, gcy-5);
+
+  geoCtx.strokeStyle='rgba(80,220,120,0.5)';
+  geoCtx.beginPath();
+  geoCtx.moveTo(gcx,gcy); geoCtx.lineTo(gcx,gcy-gry);
+  geoCtx.stroke();
+  geoCtx.fillStyle='rgba(80,220,120,0.7)';
+  geoCtx.textAlign='left';
+  geoCtx.fillText(`ry=${Math.round(gry*2)}px`, gcx+5, gcy-gry/2);
+
+  const angleStep=(Math.PI*2)/items;
+  for(let i=0;i<items;i++){
+    const angle=angleStep*i-Math.PI/2;
+    const x=gcx+grx*Math.cos(angle);
+    const y=gcy+gry*Math.sin(angle);
+    const item=ITEMS[i%ITEMS.length];
+
+    geoCtx.strokeStyle='rgba(255,255,255,0.08)';
+    geoCtx.lineWidth=0.5;
+    geoCtx.beginPath();
+    geoCtx.moveTo(gcx,gcy); geoCtx.lineTo(x,y);
+    geoCtx.stroke();
+
+    geoCtx.fillStyle=item.color;
+    geoCtx.beginPath();
+    geoCtx.arc(x,y,4,0,Math.PI*2);
+    geoCtx.fill();
+  }
+
+  geoCtx.fillStyle='rgba(255,220,0,0.45)';
+  geoCtx.textAlign='center';
+  geoCtx.font='10px Arial';
+  geoCtx.fillText(`比例 ${Math.round(ellipse*100)}% · ${items} 物件 · 間距 ${Math.round(360/items)}°`, gcx, EH-8);
+
+  // ── 對比度分析 ──────────────────────────────────────────
+  ctrCtx.fillStyle='#06080f';
+  ctrCtx.fillRect(0,0,EW,EH);
+  ctrCtx.font='11px Arial';
+  ctrCtx.fillStyle='rgba(126,200,227,0.6)';
+  ctrCtx.textAlign='center';
+  ctrCtx.fillText('對比度分析', EW/2, 18);
+
+  const bgBrightness = isAR ? trans/40 : 0.02;
+  const modes = [
+    { label: '私密模式', bg: 0.02, ui: 0.9 },
+    { label: 'AR 室內 20%', bg: 0.35, ui: 0.85 },
+    { label: 'AR 室外 35%', bg: 0.65, ui: 0.8 },
+    { label: 'AR 夜間 35%', bg: 0.08, ui: 0.88 },
+  ];
+
+  const barH = 38, startY = 36;
+  modes.forEach((m, i) => {
+    const y = startY + i * (barH + 10);
+    const contrast = m.ui / Math.max(m.bg, 0.05);
+    const quality = contrast > 5 ? 'ok' : contrast > 2.5 ? 'warn' : 'issue';
+    const qcolor = { ok:'#4caf50', warn:'#f0a500', issue:'#f44336' }[quality];
+
+    ctrCtx.fillStyle = '#0d1020';
+    ctrCtx.fillRect(10, y, EW-20, barH);
+
+    // 背景亮度條
+    ctrCtx.fillStyle = `rgba(200,220,255,${m.bg})`;
+    ctrCtx.fillRect(10, y, (EW-20)*m.bg, barH);
+
+    // UI亮度條
+    ctrCtx.fillStyle = `rgba(23,165,137,${m.ui * 0.8})`;
+    ctrCtx.fillRect(10, y, (EW-20)*m.ui, barH/2);
+
+    ctrCtx.font = '10px Arial';
+    ctrCtx.fillStyle = '#ccc';
+    ctrCtx.textAlign = 'left';
+    ctrCtx.fillText(m.label, 16, y + 14);
+
+    ctrCtx.fillStyle = qcolor;
+    ctrCtx.textAlign = 'right';
+    ctrCtx.fillText(`對比比 ${contrast.toFixed(1)}x`, EW-16, y + 14);
+
+    ctrCtx.fillStyle = '#888';
+    ctrCtx.textAlign = 'left';
+    ctrCtx.font = '9px Arial';
+    ctrCtx.fillText(`背景: ${Math.round(m.bg*100)}%  UI: ${Math.round(m.ui*100)}%`, 16, y + 30);
+
+    // 當前模式高亮
+    if (mode === ['private','ar-indoor','ar-outdoor','ar-night'][i]) {
+      ctrCtx.strokeStyle = 'rgba(23,165,137,0.7)';
+      ctrCtx.lineWidth = 1.5;
+      ctrCtx.strokeRect(10, y, EW-20, barH);
+    }
+  });
+
+  // 圖例
+  ctrCtx.font = '9px Arial';
+  ctrCtx.fillStyle = '#4caf50'; ctrCtx.textAlign='left';
+  ctrCtx.fillText('■ 優良 >5x', 16, EH-8);
+  ctrCtx.fillStyle = '#f0a500';
+  ctrCtx.fillText('■ 可接受 2.5–5x', 90, EH-8);
+  ctrCtx.fillStyle = '#f44336';
+  ctrCtx.fillText('■ 不足 <2.5x', 200, EH-8);
+
+  // ── 評估文字 ────────────────────────────────────────────
+  updateEval(mode, ellipse, items, size, trans, glow, isAR);
+}
+
+function updateEval(mode, ellipse, items, size, trans, glow, isAR) {
+  const clearance = Math.round((1-ellipse)*100);
+  const angleGap = Math.round(360/items);
+  let html = '';
+
+  if (isAR) {
+    html += `<span class="info">模式：透視 AR（透光率 ${trans}%）</span><br>`;
+    if (trans > 30) {
+      html += `<span class="warn">⚠ 高透光率：背景較亮，建議光暈 ≥ 12</span><br>`;
+    } else if (trans > 15) {
+      html += `<span class="warn">中透光率：UI 對比尚可，光暈建議 8–12</span><br>`;
+    } else {
+      html += `<span class="ok">✓ 低透光率：UI 對比良好</span><br>`;
+    }
+  } else {
+    html += `<span class="info">模式：私密螢幕（鏡片全暗）</span><br>`;
+    html += `<span class="ok">✓ 黑色背景，UI 對比最佳</span><br>`;
+  }
+
+  html += '<br>';
+
+  if (clearance < 8) html += `<span class="issue">⚠ 邊界過近（留白 ${clearance}%）</span><br>`;
+  else if (clearance < 15) html += `<span class="warn">邊界適中（留白 ${clearance}%）</span><br>`;
+  else html += `<span class="ok">✓ 邊界充裕（留白 ${clearance}%）</span><br>`;
+
+  if (items <= 4) html += `<span class="warn">物件稀疏，周邊視野易錯失</span><br>`;
+  else if (items <= 8) html += `<span class="ok">✓ 物件密度適中（${angleGap}°/物件）</span><br>`;
+  else html += `<span class="issue">物件過密，辨識困難</span><br>`;
+
+  if (size < 22) html += `<span class="issue">⚠ 物件過小（周邊視野閾值 22px）</span><br>`;
+  else html += `<span class="ok">✓ 物件尺寸符合周邊辨識需求</span><br>`;
+
+  if (isAR && glow < 6 && trans > 20) {
+    html += `<span class="issue">⚠ 光暈不足，透視模式下 UI 可能消失</span><br>`;
+  }
+
+  html += `<br><span style="color:#556">建議值：橢圓 80–88% · 物件 5–8 · 尺寸 ≥ 22px</span>`;
+  document.getElementById('evalContent').innerHTML = html;
+}
+
+updateTransThumb();
+draw();
+</script>
+</body>
+</html>

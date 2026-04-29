@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>極座標 UI v4 — 統一極座標語言</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; background: #080810; font-family: Arial, sans-serif; color: #fff; }
+.container { display: flex; flex-direction: column; align-items: center; padding: 16px; gap: 18px; }
+h1 { font-size: 16px; color: #7ec8e3; margin: 0; letter-spacing: 1px; }
+.subtitle { font-size: 11px; color: #334; margin: 0; text-align: center; line-height: 1.6; }
+
+.mode-bar { display: flex; gap: 6px; background: #0e0e18; border: 1px solid #1a1a28; border-radius: 8px; padding: 6px; flex-wrap: wrap; justify-content: center; }
+.mode-btn { padding: 5px 13px; border-radius: 20px; border: 1px solid #222; background: transparent; color: #556; cursor: pointer; font-size: 11px; transition: all 0.15s; }
+.mode-btn.active { background: #17a589; border-color: #17a589; color: #fff; font-weight: bold; }
+
+.concept-bar { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.concept-btn { padding: 5px 14px; border-radius: 20px; border: 1px solid #252535; background: #0d0d1a; color: #667; cursor: pointer; font-size: 11px; transition: all 0.15s; }
+.concept-btn.active { background: #1a253a; border-color: #2196f3; color: #7ec8e3; }
+
+.main-panel { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+.canvas-wrap { display: flex; flex-direction: column; gap: 5px; }
+.canvas-label { font-size: 10px; color: #334; text-align: center; }
+canvas { border-radius: 8px; display: block; }
+
+.ctrl-panel { background: #0c0c1a; border: 1px solid #181828; border-radius: 12px; padding: 14px; width: 252px; display: flex; flex-direction: column; gap: 10px; }
+.ctrl-section { border-bottom: 1px solid #121220; padding-bottom: 9px; }
+.ctrl-section:last-child { border-bottom: none; padding-bottom: 0; }
+.ctrl-title { font-size: 10px; color: #17a589; letter-spacing: 1px; margin-bottom: 7px; }
+.slider-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+.slider-row label { font-size: 10px; color: #668; }
+.slider-row .val { font-size: 10px; color: #aaa; width: 34px; text-align: right; }
+input[type=range] { width: 108px; accent-color: #17a589; }
+.tag-row { display: flex; gap: 5px; flex-wrap: wrap; }
+.tag { font-size: 10px; padding: 3px 8px; border-radius: 20px; cursor: pointer; border: 1px solid #1e1e2e; background: #0c0c18; color: #556; transition: all 0.15s; }
+.tag.on { background: #0f1e2e; border-color: #17a589; color: #7ec8e3; }
+.eval-panel { background: #07090f; border: 1px solid #121a24; border-radius: 8px; padding: 10px; font-size: 10px; line-height: 1.9; }
+.eval-panel h4 { margin: 0 0 5px 0; color: #7ec8e3; font-size: 10px; }
+.ok{color:#4caf50}.warn{color:#f0a500}.issue{color:#f44336}.info{color:#7ec8e3}
+.bottom-panels { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+.design-note { max-width: 864px; background: #0c0f1a; border: 1px solid #1a2030; border-radius: 8px; padding: 12px 16px; font-size: 11px; color: #667; line-height: 1.8; }
+.design-note strong { color: #7ec8e3; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div>
+    <h1>極座標 UI v4 — 統一極座標幾何語言</h1>
+    <div class="subtitle">
+      Principle：所有 UI 元素共享橢圓幾何語言 · 角落資訊以弧形徽章貼附橢圓 · 消除矩形衝突感<br>
+      VITURE Luma Ultra 1920×1200 · 電致變色 0.5–40% · 52° FOV
+    </div>
+  </div>
+
+  <!-- 設計概念切換 -->
+  <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+    <div style="font-size:10px;color:#445;letter-spacing:1px">設計概念對比</div>
+    <div class="concept-bar">
+      <button class="concept-btn" id="c0" onclick="setConcept(0)">v3 矩形角落（對照組）</button>
+      <button class="concept-btn active" id="c1" onclick="setConcept(1)">v4A 弧形徽章貼附</button>
+      <button class="concept-btn" id="c2" onclick="setConcept(2)">v4B 橢圓錨點延伸</button>
+      <button class="concept-btn" id="c3" onclick="setConcept(3)">v4C 純極座標統一</button>
+    </div>
+  </div>
+
+  <!-- 場景切換 -->
+  <div class="mode-bar">
+    <button class="mode-btn active" onclick="setMode('private')">🎬 私密螢幕</button>
+    <button class="mode-btn" onclick="setMode('ar-indoor')">🏠 透視 AR 室內</button>
+    <button class="mode-btn" onclick="setMode('ar-outdoor')">☀️ 透視 AR 戶外</button>
+    <button class="mode-btn" onclick="setMode('ar-night')">🌙 透視 AR 夜間</button>
+  </div>
+
+  <div class="main-panel">
+    <div class="canvas-wrap">
+      <div class="canvas-label">VITURE Luma Ultra（1920×1200 模擬，52° FOV）</div>
+      <canvas id="mainCanvas" width="864" height="540"></canvas>
+    </div>
+
+    <div class="ctrl-panel">
+      <div class="ctrl-section">
+        <div class="ctrl-title">📐 極座標環形 UI</div>
+        <div class="slider-row"><label>橢圓比例</label>
+          <input type="range" id="sEllipse" min="60" max="92" value="82" oninput="sync()">
+          <span class="val" id="vEllipse">82%</span></div>
+        <div class="slider-row"><label>物件數</label>
+          <input type="range" id="sItems" min="3" max="12" value="6" oninput="sync()">
+          <span class="val" id="vItems">6</span></div>
+        <div class="slider-row"><label>物件尺寸</label>
+          <input type="range" id="sSize" min="16" max="42" value="24" oninput="sync()">
+          <span class="val" id="vSize">24px</span></div>
+      </div>
+      <div class="ctrl-section">
+        <div class="ctrl-title">📌 資訊錨點</div>
+        <div class="slider-row"><label>徽章尺寸</label>
+          <input type="range" id="sBadge" min="12" max="32" value="20" oninput="sync()">
+          <span class="val" id="vBadge">20px</span></div>
+        <div class="slider-row"><label>延伸距離</label>
+          <input type="range" id="sExtend" min="0" max="60" value="28" oninput="sync()">
+          <span class="val" id="vExtend">28px</span></div>
+        <div class="slider-row"><label>資訊透明度</label>
+          <input type="range" id="sInfoAlpha" min="30" max="100" value="80" oninput="sync()">
+          <span class="val" id="vInfoAlpha">80%</span></div>
+      </div>
+      <div class="ctrl-section">
+        <div class="ctrl-title">🔆 電致變色</div>
+        <div class="slider-row"><label>透光率</label>
+          <input type="range" id="sTrans" min="1" max="40" value="5" oninput="sync()">
+          <span class="val" id="vTrans">5%</span></div>
+        <div class="slider-row"><label>光暈強度</label>
+          <input type="range" id="sGlow" min="0" max="22" value="8" oninput="sync()">
+          <span class="val" id="vGlow">8</span></div>
+      </div>
+      <div class="ctrl-section">
+        <div class="ctrl-title">🔧 輔助標示</div>
+        <div class="tag-row">
+          <div class="tag on" id="tagFov" onclick="toggleTag('tagFov')">FOV</div>
+          <div class="tag on" id="tagGaze" onclick="toggleTag('tagGaze')">凝視點</div>
+          <div class="tag on" id="tagEllipse" onclick="toggleTag('tagEllipse')">橢圓輪廓</div>
+          <div class="tag" id="tagAngle" onclick="toggleTag('tagAngle')">角度</div>
+          <div class="tag" id="tagGrid" onclick="toggleTag('tagGrid')">幾何網格</div>
+        </div>
+      </div>
+      <div class="eval-panel">
+        <h4>⚡ 設計評估</h4>
+        <div id="evalContent">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 設計說明 -->
+  <div class="design-note" id="designNote">—</div>
+
+  <div class="bottom-panels">
+    <div class="canvas-wrap">
+      <div class="canvas-label">單眼視角（周邊辨識模擬）</div>
+      <canvas id="eyeCanvas" width="432" height="270"></canvas>
+    </div>
+    <div class="canvas-wrap">
+      <div class="canvas-label">幾何語言分析</div>
+      <canvas id="geoCanvas" width="432" height="270"></canvas>
+    </div>
+    <div class="canvas-wrap">
+      <div class="canvas-label">四概念快速對比</div>
+      <canvas id="compareCanvas" width="432" height="270"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+let S = {
+  mode:'private', concept:1,
+  ellipse:0.82, items:6, size:24,
+  badge:20, extend:28, infoAlpha:80,
+  trans:5, glow:8,
+  tags:{tagFov:true,tagGaze:true,tagEllipse:true,tagAngle:false,tagGrid:false}
+};
+
+const ITEMS=[
+  {icon:'🔋',label:'電量',color:'#4caf50'},{icon:'🎤',label:'語音',color:'#2196f3'},
+  {icon:'📷',label:'相機',color:'#9c27b0'},{icon:'🗺️',label:'地圖',color:'#ff9800'},
+  {icon:'⏰',label:'時間',color:'#00bcd4'},{icon:'📡',label:'連線',color:'#8bc34a'},
+  {icon:'🌡️',label:'溫度',color:'#f44336'},{icon:'💬',label:'訊息',color:'#e91e63'},
+  {icon:'🔊',label:'音量',color:'#ff5722'},{icon:'📊',label:'數據',color:'#607d8b'},
+  {icon:'⚡',label:'狀態',color:'#ffc107'},{icon:'🎯',label:'焦點',color:'#17a589'},
+];
+
+// 四個角落的錨點角度（橢圓上的位置）
+const ANCHOR_ANGLES = {
+  TL: -Math.PI*0.82,   // 左上
+  TR: -Math.PI*0.18,   // 右上
+  BL:  Math.PI*0.82,   // 左下
+  BR:  Math.PI*0.18,   // 右下
+};
+
+const ANCHOR_INFO = {
+  TL: { lines:['2026.04.26','16:42'], icon:'🕐', color:'#7ec8e3' },
+  TR: { lines:['🔋 78%','5G ◉'], icon:'⚡', color:'#4caf50' },
+  BL: { lines:['南屯區','↑ 230m'], icon:'📍', color:'#ff9800' },
+  BR: { lines:['黑足貓','通知×3'], icon:'🤖', color:'#9c27b0' },
+};
+
+const DESIGN_NOTES = [
+  `<strong>v3 矩形角落（對照組）</strong>：角落使用矩形資訊框。<br>問題：矩形的直角和橢圓UI的曲線語言產生<strong>幾何衝突</strong>，視覺上像兩套不同的設計系統疊加在一起。`,
+  `<strong>v4A 弧形徽章貼附</strong>：角落資訊框改為圓弧形（pill shape），共享橢圓的曲率哲學。<br>
+   改善：消除直角，所有元素使用圓/弧幾何。但資訊框仍位於四角，與橢圓UI的<strong>空間邏輯</strong>未完全整合。`,
+  `<strong>v4B 橢圓錨點延伸</strong>：資訊元素從橢圓邊緣錨點向外延伸，像衛星圍繞主橢圓。<br>
+   原則：<strong>所有資訊都是橢圓系統的延伸</strong>，不存在獨立的「角落區」，只有橢圓的不同位置。日期/時間錨定在左上角的橢圓弧上。`,
+  `<strong>v4C 純極座標統一</strong>：取消角落概念，必要資訊直接加入極座標系統，以特殊樣式區分「功能項目」和「狀態資訊」。<br>
+   最激進：畫布完全由橢圓系統主導，<strong>零矩形元素</strong>。代價是可用的資訊容量受限於橢圓弧長。`,
+];
+
+function sync(){
+  S.ellipse   = parseFloat(document.getElementById('sEllipse').value)/100;
+  S.items     = parseInt(document.getElementById('sItems').value);
+  S.size      = parseInt(document.getElementById('sSize').value);
+  S.badge     = parseInt(document.getElementById('sBadge').value);
+  S.extend    = parseInt(document.getElementById('sExtend').value);
+  S.infoAlpha = parseInt(document.getElementById('sInfoAlpha').value);
+  S.trans     = parseInt(document.getElementById('sTrans').value);
+  S.glow      = parseInt(document.getElementById('sGlow').value);
+  document.getElementById('vEllipse').textContent  = Math.round(S.ellipse*100)+'%';
+  document.getElementById('vItems').textContent    = S.items;
+  document.getElementById('vSize').textContent     = S.size+'px';
+  document.getElementById('vBadge').textContent    = S.badge+'px';
+  document.getElementById('vExtend').textContent   = S.extend+'px';
+  document.getElementById('vInfoAlpha').textContent= S.infoAlpha+'%';
+  document.getElementById('vTrans').textContent    = S.trans+'%';
+  document.getElementById('vGlow').textContent     = S.glow;
+  draw();
+}
+function setMode(m){
+  S.mode=m;
+  document.querySelectorAll('.mode-btn').forEach((b,i)=>{
+    b.className='mode-btn'+(['private','ar-indoor','ar-outdoor','ar-night'][i]===m?' active':'');
+  });
+  const defs={private:1,'ar-indoor':20,'ar-outdoor':35,'ar-night':35};
+  S.trans=defs[m];
+  document.getElementById('sTrans').value=S.trans;
+  document.getElementById('vTrans').textContent=S.trans+'%';
+  draw();
+}
+function setConcept(n){
+  S.concept=n;
+  document.querySelectorAll('.concept-btn').forEach((b,i)=>{
+    b.className='concept-btn'+(i===n?' active':'');
+  });
+  document.getElementById('designNote').innerHTML=DESIGN_NOTES[n];
+  draw();
+}
+function toggleTag(id){ S.tags[id]=!S.tags[id]; document.getElementById(id).className='tag'+(S.tags[id]?' on':''); draw(); }
+
+// ── 背景 ────────────────────────────────────────────────
+function drawBg(ctx,w,h,mode,trans){
+  const a=trans/100;
+  if(mode==='private'){ctx.fillStyle='#020204';ctx.fillRect(0,0,w,h);return;}
+  if(mode==='ar-indoor'){
+    const g=ctx.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,'#8ba0b5');g.addColorStop(0.6,'#c4b89a');g.addColorStop(1,'#6b5a3e');
+    ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='#d4e8f0';ctx.fillRect(w*0.1,h*0.1,w*0.25,h*0.45);ctx.fillRect(w*0.65,h*0.1,w*0.25,h*0.45);
+    ctx.fillStyle='#8B6914';ctx.fillRect(w*0.05,h*0.72,w*0.9,h*0.06);
+    ctx.fillStyle=`rgba(0,0,0,${1-a*0.9})`;ctx.fillRect(0,0,w,h);
+  } else if(mode==='ar-outdoor'){
+    const sky=ctx.createLinearGradient(0,0,0,h*0.55);
+    sky.addColorStop(0,'#1565c0');sky.addColorStop(1,'#64b5f6');
+    ctx.fillStyle=sky;ctx.fillRect(0,0,w,h*0.55);
+    ctx.fillStyle='#2e7d32';ctx.fillRect(0,h*0.55,w,h*0.45);
+    ctx.fillStyle='rgba(255,235,59,0.9)';ctx.beginPath();ctx.arc(w*0.8,h*0.15,w*0.04,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.8)';
+    [0.15,0.4].forEach(xr=>{ctx.beginPath();ctx.arc(w*xr,h*0.2,w*0.05,0,Math.PI*2);ctx.arc(w*xr+w*0.04,h*0.17,w*0.04,0,Math.PI*2);ctx.fill();});
+    ctx.fillStyle=`rgba(255,255,255,${Math.max(0,(a-0.2)*0.5)})`;ctx.fillRect(0,0,w,h);
+    ctx.fillStyle=`rgba(0,0,0,${1-a*0.85})`;ctx.fillRect(0,0,w,h);
+  } else {
+    ctx.fillStyle='#020408';ctx.fillRect(0,0,w,h);
+    for(let i=0;i<80;i++){
+      ctx.fillStyle=`rgba(255,255,255,${Math.random()*0.7+0.2})`;
+      ctx.beginPath();ctx.arc(Math.random()*w,Math.random()*h*0.7,Math.random()*1.5,0,Math.PI*2);ctx.fill();
+    }
+    ctx.fillStyle='rgba(255,255,220,0.9)';ctx.beginPath();ctx.arc(w*0.85,h*0.12,w*0.03,0,Math.PI*2);ctx.fill();
+    for(let i=0;i<4;i++){
+      ctx.fillStyle='rgba(255,200,80,0.55)';ctx.beginPath();ctx.arc(w*(0.1+i*0.27),h*0.65,w*0.015,0,Math.PI*2);ctx.fill();
+    }
+    ctx.fillStyle=`rgba(0,0,0,${1-a*1.1})`;ctx.fillRect(0,0,w,h);
+  }
+}
+
+// ── 圓角矩形 ─────────────────────────────────────────────
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r,y+h);ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);ctx.closePath();
+}
+
+// ── 極座標 UI ────────────────────────────────────────────
+function drawPolarUI(ctx,cx,cy,rx,ry,n,sz,glow,mode,trans,scale=1){
+  const isAR=mode!=='private';
+  const uiA=isAR?Math.min(1,0.72+(1-trans/100)*0.28):1;
+  const glowR=glow*scale, r=sz*scale;
+
+  if(S.tags.tagEllipse){
+    ctx.save();
+    ctx.strokeStyle=`rgba(255,255,255,${isAR?0.06:0.1})`;
+    ctx.lineWidth=scale;ctx.setLineDash([4*scale,10*scale]);
+    ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.stroke();
+    ctx.setLineDash([]);ctx.restore();
+  }
+
+  for(let i=0;i<n;i++){
+    const angle=(Math.PI*2/n)*i-Math.PI/2;
+    const x=cx+rx*Math.cos(angle), y=cy+ry*Math.sin(angle);
+    const item=ITEMS[i%ITEMS.length];
+    ctx.save();ctx.globalAlpha=uiA;
+    if(isAR&&glowR>0){
+      const gg=ctx.createRadialGradient(x,y,r*0.4,x,y,r+glowR);
+      gg.addColorStop(0,item.color+'bb');gg.addColorStop(1,item.color+'00');
+      ctx.fillStyle=gg;ctx.beginPath();ctx.arc(x,y,r+glowR,0,Math.PI*2);ctx.fill();
+    }
+    ctx.fillStyle=isAR?'rgba(0,4,12,0.74)':'rgba(0,0,0,0.72)';
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle=item.color;ctx.lineWidth=1.5*scale;ctx.stroke();
+    ctx.globalAlpha=uiA;
+    ctx.font=`${r*0.72}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillStyle='#fff';ctx.fillText(item.icon,x,y-r*0.12);
+    ctx.font=`${r*0.38}px Arial`;ctx.fillStyle=isAR?'#ddeeff':'#ccc';
+    ctx.fillText(item.label,x,y+r*0.52);
+    ctx.restore();
+
+    if(S.tags.tagAngle){
+      const deg=Math.round(360/n*i);
+      ctx.save();ctx.font=`${9*scale}px Arial`;
+      ctx.fillStyle='rgba(255,255,0,0.25)';ctx.textAlign='center';
+      ctx.fillText(deg+'°',cx+(rx+16*scale)*Math.cos(angle),cy+(ry+16*scale)*Math.sin(angle));
+      ctx.restore();
+    }
+  }
+}
+
+// ── v3 矩形角落（對照） ──────────────────────────────────
+function drawRectCorners(ctx,w,h,scale=1){
+  const pad=16*scale, fs=12*scale, lineH=fs*1.6;
+  const isAR=S.mode!=='private';
+  const bgA=S.infoAlpha/100;
+
+  const data=[
+    {anchor:'TL',lines:['2026.04.26 週日','16:42'],color:'#7ec8e3'},
+    {anchor:'TR',lines:['🔋 78%  5G ◉','Jetson OK'],color:'#4caf50'},
+    {anchor:'BL',lines:['📍 南屯區','↑ 230m'],color:'#ff9800'},
+    {anchor:'BR',lines:['黑足貓 ● 就緒','通知 ×3'],color:'#9c27b0'},
+  ];
+
+  data.forEach(d=>{
+    const bw=fs*12, bh=d.lines.length*lineH+fs*0.7;
+    let bx,by;
+    if(d.anchor==='TL'){bx=pad;by=pad;}
+    else if(d.anchor==='TR'){bx=w-pad-bw;by=pad;}
+    else if(d.anchor==='BL'){bx=pad;by=h-pad-bh;}
+    else{bx=w-pad-bw;by=h-pad-bh;}
+
+    ctx.save();
+    ctx.globalAlpha=bgA;
+    ctx.fillStyle='#020508';
+    // 純矩形（對照組）
+    ctx.fillRect(bx,by,bw,bh);
+    ctx.globalAlpha=0.7;
+    ctx.strokeStyle=d.color;ctx.lineWidth=1*scale;
+    ctx.strokeRect(bx,by,bw,bh);
+    ctx.globalAlpha=1;
+    d.lines.forEach((line,i)=>{
+      ctx.font=`${i===0?'bold ':' '}${fs}px Arial`;
+      ctx.fillStyle=i===0?'#fff':'#aab';
+      ctx.textAlign='left';
+      ctx.fillText(line,bx+fs*0.4,by+fs*0.7+lineH*i);
+    });
+    ctx.restore();
+  });
+}
+
+// ── v4A 弧形徽章貼附角落 ─────────────────────────────────
+function drawPillCorners(ctx,w,h,scale=1){
+  const pad=16*scale, fs=11*scale;
+  const isAR=S.mode!=='private';
+  const bgA=S.infoAlpha/100;
+  const r=fs*0.55; // 圓角半徑 = 高度的一半 → pill shape
+
+  const data=[
+    {anchor:'TL',lines:['🕐 2026.04.26','16:42'],color:'#7ec8e3'},
+    {anchor:'TR',lines:['🔋 78%  📡 5G','Jetson ◉'],color:'#4caf50'},
+    {anchor:'BL',lines:['📍 南屯區  ↑230m'],color:'#ff9800'},
+    {anchor:'BR',lines:['🤖 黑足貓 就緒','通知 ×3'],color:'#9c27b0'},
+  ];
+
+  data.forEach(d=>{
+    const maxLen=Math.max(...d.lines.map(l=>l.length));
+    const bw=Math.max(fs*8, maxLen*fs*0.62+fs);
+    const lineH=fs*1.55;
+    const bh=d.lines.length*lineH+fs*0.5;
+    const pilR=bh/2; // pill 圓角 = 高度一半
+    let bx,by;
+    if(d.anchor==='TL'){bx=pad;by=pad;}
+    else if(d.anchor==='TR'){bx=w-pad-bw;by=pad;}
+    else if(d.anchor==='BL'){bx=pad;by=h-pad-bh;}
+    else{bx=w-pad-bw;by=h-pad-bh;}
+
+    ctx.save();
+    // 光暈（AR模式）
+    if(isAR&&S.glow>4){
+      const gg=ctx.createRadialGradient(bx+bw/2,by+bh/2,0,bx+bw/2,by+bh/2,bw*0.7);
+      gg.addColorStop(0,d.color+'22');gg.addColorStop(1,d.color+'00');
+      ctx.fillStyle=gg;ctx.fillRect(bx-S.glow,by-S.glow,bw+S.glow*2,bh+S.glow*2);
+    }
+    ctx.globalAlpha=bgA;
+    ctx.fillStyle='#010408';
+    roundRect(ctx,bx,by,bw,bh,pilR);ctx.fill(); // pill shape
+    ctx.globalAlpha=0.65;
+    ctx.strokeStyle=d.color;ctx.lineWidth=1*scale;
+    roundRect(ctx,bx,by,bw,bh,pilR);ctx.stroke();
+    // 左側色弧
+    ctx.globalAlpha=0.7;ctx.fillStyle=d.color;
+    ctx.beginPath();ctx.arc(bx+pilR,by+bh/2,pilR,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=1;
+    d.lines.forEach((line,i)=>{
+      ctx.font=`${i===0?'bold ':' '}${fs}px Arial`;
+      ctx.fillStyle=i===0?'#fff':'#aabb cc'.replace(/ /g,'');
+      ctx.textAlign='left';
+      ctx.fillText(line,bx+pilR*2+fs*0.2,by+lineH*(i+0.75));
+    });
+    ctx.restore();
+  });
+}
+
+// ── v4B 橢圓錨點延伸 ─────────────────────────────────────
+function drawAnchorExtend(ctx,cx,cy,rx,ry,scale=1){
+  const isAR=S.mode!=='private';
+  const bgA=S.infoAlpha/100;
+  const ext=S.extend*scale;
+  const fs=S.badge*scale*0.55;
+
+  Object.entries(ANCHOR_ANGLES).forEach(([key,angle])=>{
+    const info=ANCHOR_INFO[key];
+    // 橢圓上的錨點
+    const ax=cx+rx*Math.cos(angle), ay=cy+ry*Math.sin(angle);
+    // 法向量（向外延伸）
+    const nx=Math.cos(angle), ny=Math.sin(angle);
+    // 徽章中心
+    const bx=ax+nx*ext, by=ay+ny*ext;
+
+    // 連接線
+    ctx.save();
+    ctx.strokeStyle=info.color+'66';ctx.lineWidth=0.8*scale;ctx.setLineDash([3*scale,5*scale]);
+    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 錨點圓
+    ctx.fillStyle=info.color;ctx.globalAlpha=0.7;
+    ctx.beginPath();ctx.arc(ax,ay,3*scale,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=1;
+
+    // 資訊徽章（pill 形）
+    const lineH=fs*1.5;
+    const maxW=Math.max(...info.lines.map(l=>l.length))*fs*0.62+fs*1.2;
+    const bw=maxW, bh=info.lines.length*lineH+fs*0.5;
+    const pilR=bh/2;
+    // 依角度決定徽章錨定點
+    const tx = nx>0 ? bx : bx-bw;
+    const ty = ny>0 ? by : by-bh;
+
+    if(isAR&&S.glow>4){
+      const gg=ctx.createRadialGradient(tx+bw/2,ty+bh/2,0,tx+bw/2,ty+bh/2,bw*0.65);
+      gg.addColorStop(0,info.color+'1a');gg.addColorStop(1,info.color+'00');
+      ctx.fillStyle=gg;ctx.fillRect(tx-S.glow,ty-S.glow,bw+S.glow*2,bh+S.glow*2);
+    }
+    ctx.globalAlpha=bgA*0.85;ctx.fillStyle='#010408';
+    roundRect(ctx,tx,ty,bw,bh,pilR);ctx.fill();
+    ctx.globalAlpha=0.6;ctx.strokeStyle=info.color;ctx.lineWidth=scale;
+    roundRect(ctx,tx,ty,bw,bh,pilR);ctx.stroke();
+    ctx.globalAlpha=0.65;ctx.fillStyle=info.color;
+    ctx.beginPath();
+    if(nx>0) ctx.arc(tx+pilR,ty+bh/2,pilR,0,Math.PI*2);
+    else ctx.arc(tx+bw-pilR,ty+bh/2,pilR,0,Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha=1;
+    info.lines.forEach((line,i)=>{
+      ctx.font=`${i===0?'bold ':' '}${fs}px Arial`;
+      ctx.fillStyle=i===0?'#fff':'#aabbc0';
+      ctx.textAlign='left';
+      const lx=nx>0?tx+pilR*2+fs*0.15:tx+fs*0.3;
+      ctx.fillText(line,lx,ty+lineH*(i+0.75));
+    });
+    ctx.restore();
+  });
+}
+
+// ── v4C 純極座標統一 ─────────────────────────────────────
+function drawUnifiedPolar(ctx,cx,cy,rx,ry,n,sz,glow,mode,trans,scale=1){
+  const isAR=mode!=='private';
+  const uiA=isAR?Math.min(1,0.72+(1-trans/100)*0.28):1;
+  const glowR=glow*scale, r=sz*scale;
+
+  if(S.tags.tagEllipse){
+    ctx.save();
+    ctx.strokeStyle=`rgba(255,255,255,${isAR?0.06:0.09})`;
+    ctx.lineWidth=scale;ctx.setLineDash([4*scale,10*scale]);
+    ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.stroke();
+    ctx.setLineDash([]);ctx.restore();
+  }
+
+  // 功能物件
+  for(let i=0;i<n;i++){
+    const angle=(Math.PI*2/n)*i-Math.PI/2;
+    const x=cx+rx*Math.cos(angle), y=cy+ry*Math.sin(angle);
+    const item=ITEMS[i%ITEMS.length];
+    ctx.save();ctx.globalAlpha=uiA;
+    if(isAR&&glowR>0){
+      const gg=ctx.createRadialGradient(x,y,r*0.4,x,y,r+glowR);
+      gg.addColorStop(0,item.color+'aa');gg.addColorStop(1,item.color+'00');
+      ctx.fillStyle=gg;ctx.beginPath();ctx.arc(x,y,r+glowR,0,Math.PI*2);ctx.fill();
+    }
+    ctx.fillStyle=isAR?'rgba(0,4,12,0.74)':'rgba(0,0,0,0.72)';
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle=item.color;ctx.lineWidth=1.5*scale;ctx.stroke();
+    ctx.font=`${r*0.72}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillStyle='#fff';ctx.fillText(item.icon,x,y-r*0.12);
+    ctx.font=`${r*0.38}px Arial`;ctx.fillStyle='#ccc';
+    ctx.fillText(item.label,x,y+r*0.52);
+    ctx.restore();
+  }
+
+  // 在特定角度插入狀態資訊（更大尺寸的特殊物件）
+  const statusItems=[
+    {angle:-Math.PI*0.82, icon:'🕐', label:'16:42', color:'#7ec8e3', info:'2026.04.26'},
+    {angle:-Math.PI*0.18, icon:'🔋', label:'78%',   color:'#4caf50', info:'5G ◉'},
+    {angle: Math.PI*0.82, icon:'📍', label:'南屯',  color:'#ff9800', info:'↑230m'},
+    {angle: Math.PI*0.18, icon:'🤖', label:'就緒',  color:'#9c27b0', info:'通知×3'},
+  ];
+  const sr=r*1.3; // 狀態物件稍大
+  statusItems.forEach(si=>{
+    const x=cx+rx*Math.cos(si.angle), y=cy+ry*Math.sin(si.angle);
+    ctx.save();ctx.globalAlpha=uiA;
+    // 外光暈區分狀態物件
+    const sg=ctx.createRadialGradient(x,y,sr*0.5,x,y,sr+glowR*1.5);
+    sg.addColorStop(0,si.color+'cc');sg.addColorStop(1,si.color+'00');
+    ctx.fillStyle=sg;ctx.beginPath();ctx.arc(x,y,sr+glowR*1.5,0,Math.PI*2);ctx.fill();
+    // 雙圓（外框更粗）
+    ctx.fillStyle='rgba(0,2,8,0.82)';
+    ctx.beginPath();ctx.arc(x,y,sr,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle=si.color;ctx.lineWidth=2.5*scale;ctx.stroke();
+    // 內圓點
+    ctx.fillStyle=si.color+'44';
+    ctx.beginPath();ctx.arc(x,y,sr*0.35,0,Math.PI*2);ctx.fill();
+    ctx.font=`bold ${sr*0.6}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillStyle='#fff';ctx.fillText(si.icon,x,y-sr*0.2);
+    ctx.font=`${sr*0.3}px Arial`;ctx.fillStyle=si.color;
+    ctx.fillText(si.label,x,y+sr*0.35);
+    // 輔助資訊（小字）
+    ctx.font=`${sr*0.26}px Arial`;ctx.fillStyle='rgba(200,220,240,0.6)';
+    const nx=Math.cos(si.angle), ny=Math.sin(si.angle);
+    ctx.fillText(si.info,x+nx*(sr+4*scale),y+ny*(sr+4*scale));
+    ctx.restore();
+  });
+}
+
+// ── 幾何語言分析 ──────────────────────────────────────────
+function drawGeoAnalysis(ctx,w,h){
+  ctx.fillStyle='#04060c';ctx.fillRect(0,0,w,h);
+  const concepts=[
+    {name:'v3 矩形', shapes:['rect'], color:'#f44336', note:'幾何衝突'},
+    {name:'v4A pill', shapes:['pill'], color:'#ff9800', note:'曲線一致'},
+    {name:'v4B 錨點', shapes:['anchor'], color:'#4caf50', note:'系統延伸'},
+    {name:'v4C 統一', shapes:['unified'], color:'#2196f3', note:'完全統一'},
+  ];
+  const boxW=88,boxH=52,gap=8,startX=12,startY=22;
+  ctx.font='9px Arial';ctx.textAlign='center';
+  concepts.forEach((c,i)=>{
+    const x=startX+i*(boxW+gap), y=startY;
+    const isActive=S.concept===i;
+    ctx.save();
+    ctx.strokeStyle=isActive?c.color:'#223';
+    ctx.lineWidth=isActive?1.5:0.8;
+    ctx.fillStyle=isActive?c.color+'12':'#08080f';
+    roundRect(ctx,x,y,boxW,boxH,6);ctx.fill();ctx.stroke();
+    // 小示意圖
+    const mx=x+boxW/2, my=y+boxH*0.42;
+    if(c.shapes[0]==='rect'){
+      ctx.strokeStyle=c.color;ctx.lineWidth=1;
+      ctx.strokeRect(mx-16,my-8,32,16);
+    } else if(c.shapes[0]==='pill'){
+      ctx.strokeStyle=c.color;ctx.lineWidth=1;
+      roundRect(ctx,mx-16,my-8,32,16,8);ctx.stroke();
+    } else if(c.shapes[0]==='anchor'){
+      ctx.strokeStyle=c.color;ctx.lineWidth=1;
+      ctx.beginPath();ctx.arc(mx,my,10,0,Math.PI*2);ctx.stroke();
+      ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(mx+10,my);ctx.lineTo(mx+22,my);ctx.stroke();ctx.setLineDash([]);
+      roundRect(ctx,mx+22,my-6,18,12,6);ctx.stroke();
+    } else {
+      ctx.strokeStyle=c.color;ctx.lineWidth=1;
+      ctx.beginPath();ctx.arc(mx,my,12,0,Math.PI*2);ctx.stroke();
+      ctx.beginPath();ctx.arc(mx+12*Math.cos(-0.8),my+12*Math.sin(-0.8),6,0,Math.PI*2);ctx.stroke();
+    }
+    ctx.fillStyle=isActive?'#fff':'#556';
+    ctx.fillText(c.name,mx,y+boxH-14);
+    ctx.fillStyle=isActive?c.color:'#334';
+    ctx.font='8px Arial';ctx.fillText(c.note,mx,y+boxH-5);
+    ctx.font='9px Arial';
+    ctx.restore();
+  });
+
+  // 幾何一致性分析
+  const labels=['幾何一致性','空間利用','資訊容量','視覺簡潔'];
+  const scores=[
+    [20,70,80,40],  // v3
+    [65,72,78,65],  // v4A
+    [85,80,70,80],  // v4B
+    [100,75,55,95], // v4C
+  ];
+  const cColors=['#f44336','#ff9800','#4caf50','#2196f3'];
+  const sy=100, sh=130, bw2=14, bgap=4;
+  const totalBW=(bw2+bgap)*4+bgap;
+  ctx.font='9px Arial';
+
+  labels.forEach((lab,li)=>{
+    const lx=28+li*(w-40)/labels.length;
+    ctx.fillStyle='#334';ctx.textAlign='center';
+    ctx.fillText(lab,lx+(bw2+bgap)*2,sy-5);
+
+    scores.forEach((sc,ci)=>{
+      const bx=lx+(bw2+bgap)*ci;
+      const bh=sh*(sc[li]/100);
+      const by=sy+sh-bh;
+      const isActive=S.concept===ci;
+      ctx.fillStyle=isActive?cColors[ci]:cColors[ci]+'44';
+      ctx.fillRect(bx,by,bw2,bh);
+      if(isActive){
+        ctx.fillStyle='#fff';ctx.font='8px Arial';ctx.textAlign='center';
+        ctx.fillText(sc[li],bx+bw2/2,by-3);ctx.font='9px Arial';
+      }
+    });
+  });
+
+  // 當前概念高亮標示
+  ctx.fillStyle=cColors[S.concept];ctx.textAlign='center';ctx.font='bold 10px Arial';
+  ctx.fillText('▲ 當前：'+concepts[S.concept].name,w/2,h-8);
+}
+
+// ── 四概念對比縮略圖 ──────────────────────────────────────
+function drawCompare(ctx,w,h){
+  ctx.fillStyle='#030508';ctx.fillRect(0,0,w,h);
+  const cols=2,rows=2;
+  const cw=w/cols, ch=h/rows;
+  const labels=['v3 矩形對照','v4A pill角落','v4B 橢圓錨點','v4C 純極座標'];
+  const lColors=['#f44336','#ff9800','#4caf50','#2196f3'];
+
+  for(let i=0;i<4;i++){
+    const col=i%cols, row=Math.floor(i/cols);
+    const ox=col*cw, oy=row*ch;
+    ctx.save();ctx.beginPath();ctx.rect(ox,oy,cw,ch);ctx.clip();
+
+    // 迷你背景
+    ctx.fillStyle=S.mode==='private'?'#020204':'#0a1428';
+    ctx.fillRect(ox,oy,cw,ch);
+
+    const mcx=ox+cw/2, mcy=oy+ch/2;
+    const mrx=(cw/2-8)*0.78, mry=(ch/2-8)*0.78;
+    const mscale=0.38;
+
+    // 橢圓輪廓
+    ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=0.7;
+    ctx.setLineDash([3,7]);ctx.beginPath();ctx.ellipse(mcx,mcy,mrx,mry,0,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+
+    // 迷你物件
+    for(let j=0;j<6;j++){
+      const ang=(Math.PI*2/6)*j-Math.PI/2;
+      const px=mcx+mrx*Math.cos(ang), py=mcy+mry*Math.sin(ang);
+      const item=ITEMS[j%ITEMS.length];
+      ctx.fillStyle='rgba(0,0,0,0.7)';ctx.beginPath();ctx.arc(px,py,7,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=item.color;ctx.lineWidth=1;ctx.stroke();
+      ctx.font='7px Arial';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillStyle='#fff';ctx.fillText(item.icon,px,py);
+    }
+
+    // 各概念的資訊顯示方式
+    const mpad=7;
+    if(i===0){
+      // 矩形
+      [[mpad,mpad],[cw-mpad-28,mpad],[mpad,ch-mpad-14],[cw-mpad-28,ch-mpad-14]].forEach(([bx,by])=>{
+        bx+=ox;by+=oy;
+        ctx.strokeStyle='#7ec8e344';ctx.lineWidth=0.7;ctx.strokeRect(bx,by,28,13);
+        ctx.fillStyle='rgba(255,255,255,0.5)';ctx.font='6px Arial';ctx.textAlign='left';
+        ctx.fillText('Info',bx+2,by+8);
+      });
+    } else if(i===1){
+      // pill
+      [[mpad,mpad],[cw-mpad-28,mpad],[mpad,ch-mpad-13],[cw-mpad-28,ch-mpad-13]].forEach(([bx,by])=>{
+        bx+=ox;by+=oy;
+        ctx.strokeStyle='#7ec8e366';ctx.lineWidth=0.7;
+        roundRect(ctx,bx,by,28,13,6.5);ctx.stroke();
+        ctx.fillStyle='rgba(255,255,255,0.5)';ctx.font='6px Arial';ctx.textAlign='left';
+        ctx.fillText('Info',bx+2,by+8);
+      });
+    } else if(i===2){
+      // 錨點延伸
+      Object.entries(ANCHOR_ANGLES).forEach(([k,ang])=>{
+        const ax=mcx+mrx*Math.cos(ang), ay=mcy+mry*Math.sin(ang);
+        const nx=Math.cos(ang),ny=Math.sin(ang);
+        const bx=ax+nx*12,by=ay+ny*12;
+        ctx.strokeStyle=ANCHOR_INFO[k].color+'66';ctx.lineWidth=0.6;
+        ctx.setLineDash([2,3]);ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.stroke();ctx.setLineDash([]);
+        ctx.strokeStyle=ANCHOR_INFO[k].color+'88';ctx.lineWidth=0.6;
+        const tw=18,th=10;
+        const tx=nx>0?bx:bx-tw, ty=ny>0?by:by-th;
+        roundRect(ctx,tx,ty,tw,th,5);ctx.stroke();
+      });
+    } else {
+      // 統一極座標（較大物件）
+      Object.entries(ANCHOR_ANGLES).forEach(([k,ang])=>{
+        const ax=mcx+mrx*Math.cos(ang), ay=mcy+mry*Math.sin(ang);
+        ctx.fillStyle=ANCHOR_INFO[k].color+'33';
+        ctx.beginPath();ctx.arc(ax,ay,9,0,Math.PI*2);ctx.fill();
+        ctx.strokeStyle=ANCHOR_INFO[k].color+'88';ctx.lineWidth=1.2;
+        ctx.beginPath();ctx.arc(ax,ay,9,0,Math.PI*2);ctx.stroke();
+      });
+    }
+
+    // 框線和標籤
+    const isAct=S.concept===i;
+    ctx.strokeStyle=isAct?lColors[i]:'#1a2030';
+    ctx.lineWidth=isAct?2:0.8;
+    ctx.strokeRect(ox+0.5,oy+0.5,cw-1,ch-1);
+    ctx.fillStyle=isAct?lColors[i]:'#334455';
+    ctx.font=`${isAct?'bold ':''}9px Arial`;ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(labels[i],ox+cw/2,oy+3);
+    ctx.restore();
+  }
+}
+
+// ── 主繪製 ────────────────────────────────────────────────
+function draw(){
+  const W=864,H=540,EW=432,EH=270;
+  const mainCtx=document.getElementById('mainCanvas').getContext('2d');
+  const eyeCtx =document.getElementById('eyeCanvas').getContext('2d');
+  const geoCtx =document.getElementById('geoCanvas').getContext('2d');
+  const cmpCtx =document.getElementById('compareCanvas').getContext('2d');
+  const {mode,ellipse,items,size,trans,glow,concept}=S;
+  const isAR=mode!=='private';
+
+  drawBg(mainCtx,W,H,mode,trans);
+
+  const cx=W/2,cy=H/2;
+  const rx=(W/2-28)*ellipse, ry=(H/2-28)*ellipse;
+
+  if(S.tags.tagFov){
+    mainCtx.save();
+    mainCtx.strokeStyle=isAR?'rgba(100,200,255,0.08)':'rgba(255,255,0,0.08)';
+    mainCtx.lineWidth=1;mainCtx.setLineDash([6,14]);
+    mainCtx.strokeRect(18,18,W-36,H-36);mainCtx.setLineDash([]);
+    mainCtx.font='10px Arial';
+    mainCtx.fillStyle=isAR?'rgba(100,200,255,0.25)':'rgba(255,255,0,0.25)';
+    mainCtx.fillText('52° FOV · 1920×1200 · 透光率 '+trans+'%',24,32);
+    mainCtx.restore();
+  }
+  if(S.tags.tagGaze){
+    mainCtx.save();
+    mainCtx.strokeStyle='rgba(255,255,255,0.14)';mainCtx.lineWidth=1;
+    const cl=14;
+    mainCtx.beginPath();mainCtx.moveTo(cx-cl,cy);mainCtx.lineTo(cx+cl,cy);
+    mainCtx.moveTo(cx,cy-cl);mainCtx.lineTo(cx,cy+cl);mainCtx.stroke();
+    mainCtx.beginPath();mainCtx.arc(cx,cy,3,0,Math.PI*2);
+    mainCtx.fillStyle='rgba(255,255,255,0.3)';mainCtx.fill();
+    mainCtx.restore();
+  }
+  if(S.tags.tagGrid){
+    mainCtx.save();
+    mainCtx.strokeStyle='rgba(255,255,255,0.04)';mainCtx.lineWidth=0.5;
+    for(let x=0;x<W;x+=W/8){mainCtx.beginPath();mainCtx.moveTo(x,0);mainCtx.lineTo(x,H);mainCtx.stroke();}
+    for(let y=0;y<H;y+=H/6){mainCtx.beginPath();mainCtx.moveTo(0,y);mainCtx.lineTo(W,y);mainCtx.stroke();}
+    mainCtx.restore();
+  }
+
+  // 根據概念繪製不同的 UI
+  if(concept===0){
+    drawPolarUI(mainCtx,cx,cy,rx,ry,items,size,glow,mode,trans,1);
+    drawRectCorners(mainCtx,W,H,1);
+  } else if(concept===1){
+    drawPolarUI(mainCtx,cx,cy,rx,ry,items,size,glow,mode,trans,1);
+    drawPillCorners(mainCtx,W,H,1);
+  } else if(concept===2){
+    drawPolarUI(mainCtx,cx,cy,rx,ry,items,size,glow,mode,trans,1);
+    drawAnchorExtend(mainCtx,cx,cy,rx,ry,1);
+  } else {
+    drawUnifiedPolar(mainCtx,cx,cy,rx,ry,items,size,glow,mode,trans,1);
+  }
+
+  if(isAR&&trans>28){
+    mainCtx.save();
+    mainCtx.strokeStyle='rgba(255,150,0,0.3)';mainCtx.lineWidth=1.2;mainCtx.setLineDash([4,8]);
+    mainCtx.strokeRect(8,8,W-16,H-16);mainCtx.setLineDash([]);
+    mainCtx.font='10px Arial';mainCtx.fillStyle='rgba(255,150,0,0.5)';
+    mainCtx.textAlign='center';mainCtx.fillText('⚠ 高透光率：建議加強光暈對比',W/2,H-10);
+    mainCtx.restore();
+  }
+
+  // 單眼視角
+  drawBg(eyeCtx,EW,EH,mode,trans);
+  const erx=(EW/2-14)*ellipse, ery=(EH/2-14)*ellipse;
+  if(concept===0){
+    drawPolarUI(eyeCtx,EW/2,EH/2,erx,ery,items,size*0.5,glow*0.5,mode,trans,0.5);
+    drawRectCorners(eyeCtx,EW,EH,0.5);
+  } else if(concept===1){
+    drawPolarUI(eyeCtx,EW/2,EH/2,erx,ery,items,size*0.5,glow*0.5,mode,trans,0.5);
+    drawPillCorners(eyeCtx,EW,EH,0.5);
+  } else if(concept===2){
+    drawPolarUI(eyeCtx,EW/2,EH/2,erx,ery,items,size*0.5,glow*0.5,mode,trans,0.5);
+    drawAnchorExtend(eyeCtx,EW/2,EH/2,erx,ery,0.5);
+  } else {
+    drawUnifiedPolar(eyeCtx,EW/2,EH/2,erx,ery,items,size*0.5,glow*0.5,mode,trans,0.5);
+  }
+  const pb=eyeCtx.createRadialGradient(EW/2,EH/2,EH*0.15,EW/2,EH/2,EH*0.88);
+  pb.addColorStop(0,'rgba(0,0,0,0)');pb.addColorStop(0.5,'rgba(0,0,0,0)');pb.addColorStop(1,'rgba(0,0,0,0.45)');
+  eyeCtx.fillStyle=pb;eyeCtx.fillRect(0,0,EW,EH);
+  eyeCtx.font='10px Arial';eyeCtx.fillStyle='rgba(200,200,100,0.4)';
+  eyeCtx.textAlign='center';eyeCtx.fillText('單眼視角 · 周邊辨識 60–75%',EW/2,EH-7);
+
+  drawGeoAnalysis(geoCtx,EW,EH);
+  drawCompare(cmpCtx,EW,EH);
+  updateEval();
+  document.getElementById('designNote').innerHTML=DESIGN_NOTES[concept];
+}
+
+function updateEval(){
+  const {concept,ellipse,items,size,trans,mode}=S;
+  const isAR=mode!=='private';
+  const names=['v3 矩形','v4A pill','v4B 錨點延伸','v4C 純極座標'];
+  const cColors=['#f44336','#ff9800','#4caf50','#2196f3'];
+  let html=`<span style="color:${cColors[concept]}">◉ ${names[concept]}</span><br><br>`;
+
+  if(concept===0) html+=`<span class="issue">幾何衝突：矩形直角 vs 橢圓曲線</span><br><span class="warn">空間利用率低，角落孤立</span>`;
+  else if(concept===1) html+=`<span class="ok">✓ 曲線一致：pill shape 消除直角</span><br><span class="warn">空間邏輯仍為「四角落」獨立區</span>`;
+  else if(concept===2) html+=`<span class="ok">✓ 幾何統一：錨點從橢圓延伸</span><br><span class="ok">✓ 空間邏輯一致：無獨立角落</span><br><span class="warn">資訊量受橢圓周長限制</span>`;
+  else html+=`<span class="ok">✓ 完全統一：零矩形元素</span><br><span class="ok">✓ 最高幾何一致性</span><br><span class="issue">⚠ 資訊容量最受限</span>`;
+
+  html+=`<br><br>`;
+  if(isAR&&trans>28) html+=`<span class="warn">⚠ 高透光率：增加光暈強度</span><br>`;
+  html+=`<span style="color:#334">建議：v4B 在資訊完整性與幾何一致性間取得最佳平衡</span>`;
+  document.getElementById('evalContent').innerHTML=html;
+}
+
+// 初始化
+setConcept(1);
+sync();
+</script>
+</body>
+</html>
