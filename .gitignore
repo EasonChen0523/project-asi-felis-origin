@@ -31,3 +31,8 @@ install_manifest.txt
 # 測試輸出
 hello_frame.ppm
 hello_frame.jpg
+venv/
+neowalker_env/
+__pycache__/
+*.pyc
+*.wav
