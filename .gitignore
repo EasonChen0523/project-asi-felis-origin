@@ -1,38 +1,73 @@
-# Build output
+# ── Build directories ──────────────────────────────────────
 build/
+build-*/
+out/
 cmake-build-*/
+
+# ── VITURE SDK binaries (download from https://www.viture.com/developer)
+# Do NOT commit binary distributions; each developer fetches their own.
+sdk/windows_x86_64/
+sdk/linux_x86_64/
+sdk/linux_aarch64/
+
+# But DO keep the unified headers + license metadata
+!sdk/include/
+!sdk/LICENSE
+!sdk/NOTICE
+!sdk/README.md
+
+# ── Compiled artifacts ─────────────────────────────────────
 *.o
+*.obj
+*.so
+*.so.*
+*.dll
+*.dylib
+*.lib
 *.a
+*.exe
+*.pdb
+*.ilk
+*.exp
 
-# SDK 動態庫（不進 repo，各平台自行放置）
-sdk/x86_64/
-sdk/aarch64/
-
-# SDK 文件（可選，體積大）
-sdk/docs/
-
-# 執行檔
-asi_hello
-
-# CMake cache
-CMakeCache.txt
-CMakeFiles/
-cmake_install.cmake
-Makefile
-install_manifest.txt
-
-# IDE
+# ── IDE / Editor ───────────────────────────────────────────
 .vscode/
+.vs/
 .idea/
 *.swp
 *.swo
+*~
 .DS_Store
 
-# 測試輸出
-hello_frame.ppm
-hello_frame.jpg
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+Makefile
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+
+# Visual Studio
+*.user
+*.suo
+*.sln.docstates
+.vsconfig
+
+# ── Python virtual environments & cache ───────────────────
 venv/
 neowalker_env/
+.venv/
+env/
 __pycache__/
 *.pyc
-*.wav
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── Runtime test outputs ───────────────────────────────────
+hello_frame.ppm
+hello_frame.jpg
+*.log
