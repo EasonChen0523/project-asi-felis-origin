@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>橢球 v9 — Debug Log 版</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#06060e;color:#fff;font-family:Arial,sans-serif;overflow:hidden;}
+#app{width:100vw;height:100vh;position:relative;}
+canvas#glc{width:100%;height:100%;display:block;}
+#ctrl{
+  position:absolute;top:0;left:0;right:0;
+  background:rgba(4,5,16,0.92);border-bottom:1px solid rgba(60,110,220,0.20);
+  padding:8px 14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;
+}
+.cg{display:flex;align-items:center;gap:6px;}
+.cg label{font-size:11px;color:rgba(145,185,255,0.75);white-space:nowrap;}
+.cg input[type=range]{width:96px;accent-color:#4488ff;}
+.cg .v{font-size:12px;color:#fff;min-width:32px;}
+.pb{display:flex;gap:5px;flex-wrap:wrap;}
+.pb button{
+  font-size:10px;padding:4px 8px;
+  background:rgba(28,48,108,0.70);border:1px solid rgba(65,108,200,0.50);
+  color:rgba(165,200,255,0.88);border-radius:4px;cursor:pointer;
+}
+.pb button:hover{background:rgba(48,78,168,0.80);}
+#info{
+  position:absolute;bottom:0;left:0;right:0;
+  background:rgba(3,4,14,0.88);border-top:1px solid rgba(60,110,220,0.14);
+  padding:7px 14px;font-size:11px;color:rgba(125,170,220,0.78);
+}
+
+/* ── Log 面板 ───────────────────────────────────── */
+#log-panel{
+  position:absolute;
+  top:52px; right:0;
+  width:360px;
+  height:calc(100vh - 52px - 32px);
+  background:rgba(2,4,14,0.92);
+  border-left:1px solid rgba(60,110,220,0.25);
+  display:flex;flex-direction:column;
+  font-family:'Courier New',monospace;
+  font-size:11px;
+  z-index:10;
+  transition:transform 0.3s;
+}
+#log-panel.hidden{transform:translateX(100%);}
+#log-header{
+  padding:6px 10px;
+  background:rgba(20,40,120,0.80);
+  border-bottom:1px solid rgba(60,110,220,0.30);
+  display:flex;justify-content:space-between;align-items:center;
+  flex-shrink:0;
+}
+#log-header span{color:rgba(160,200,255,0.9);font-size:11px;}
+#log-header button{
+  font-size:10px;padding:2px 7px;
+  background:rgba(40,60,140,0.70);border:1px solid rgba(80,120,220,0.50);
+  color:rgba(160,200,255,0.88);border-radius:3px;cursor:pointer;
+}
+
+/* 即時數值區 */
+#live-stats{
+  padding:8px 10px;
+  border-bottom:1px solid rgba(60,110,220,0.15);
+  flex-shrink:0;
+}
+.stat-row{display:flex;justify-content:space-between;padding:2px 0;}
+.stat-label{color:rgba(120,160,220,0.70);}
+.stat-val{color:#fff;min-width:80px;text-align:right;}
+.stat-val.warn{color:#ff9944;}
+.stat-val.trigger{color:#ff4444;font-weight:bold;}
+.stat-val.ok{color:#44ff88;}
+
+/* 迷你波形圖 */
+#mini-chart{
+  padding:6px 10px;
+  border-bottom:1px solid rgba(60,110,220,0.15);
+  flex-shrink:0;
+}
+#mini-chart canvas{width:100%;height:60px;display:block;}
+
+/* 滾動 log 區 */
+#log-scroll{
+  flex:1;overflow-y:auto;padding:4px 6px;
+}
+#log-scroll::-webkit-scrollbar{width:4px;}
+#log-scroll::-webkit-scrollbar-thumb{background:rgba(80,120,220,0.40);border-radius:2px;}
+.log-line{
+  padding:1px 4px;border-radius:2px;margin-bottom:1px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.log-line.ws   {color:rgba(100,200,255,0.80);}
+.log-line.lerp {color:rgba(100,255,150,0.70);}
+.log-line.trig {color:#ff4444;background:rgba(80,0,0,0.30);}
+.log-line.jump {color:#ff9944;background:rgba(80,40,0,0.30);}
+.log-line.sys  {color:rgba(160,160,200,0.60);}
+
+/* toggle 按鈕（固定在右側） */
+#log-toggle{
+  position:absolute;
+  top:60px;right:0;
+  z-index:20;
+  writing-mode:vertical-rl;
+  padding:8px 4px;
+  background:rgba(20,40,120,0.80);
+  border:1px solid rgba(60,110,220,0.30);
+  border-right:none;
+  border-radius:4px 0 0 4px;
+  color:rgba(160,200,255,0.9);
+  font-size:11px;cursor:pointer;
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="glc"></canvas>
+
+  <div id="ctrl">
+    <div class="cg"><label>水平 a</label>
+      <input type="range" id="sa" min="0.3" max="4" value="1.4" step="0.05" oninput="upd()">
+      <span class="v" id="va">1.4</span></div>
+    <div class="cg"><label>垂直 b</label>
+      <input type="range" id="sb" min="0.3" max="4" value="1.0" step="0.05" oninput="upd()">
+      <span class="v" id="vb">1.0</span></div>
+    <div class="cg"><label>深度 c</label>
+      <input type="range" id="sc" min="0.3" max="4" value="1.2" step="0.05" oninput="upd()">
+      <span class="v" id="vc">1.2</span></div>
+    <div class="cg"><label>FOV</label>
+      <input type="range" id="sf" min="20" max="90" value="45" step="1" oninput="upd()">
+      <span class="v" id="vf">45°</span></div>
+    <div class="cg"><label>圓角</label>
+      <input type="range" id="sr" min="0" max="60" value="16" step="1" oninput="upd()">
+      <span class="v" id="vr">16</span></div>
+    <div class="pb">
+      <button onclick="pre(1.4,1.0,1.2,45,16)">AR 最佳</button>
+      <button onclick="pre(1.4,1.0,0.5,45,16)">淺景深</button>
+      <button onclick="pre(1.4,1.0,3.5,45,16)">深景深</button>
+      <button onclick="pre(0.5,0.35,0.4,45,8)">極端弧形</button>
+    </div>
+  </div>
+
+  <!-- Log 面板 -->
+  <button id="log-toggle" onclick="toggleLog()">📊 Log</button>
+  <div id="log-panel">
+    <div id="log-header">
+      <span>🔬 Debug Log 面板</span>
+      <div style="display:flex;gap:6px;">
+        <button onclick="clearLog()">清除</button>
+        <button onclick="exportLog()">匯出</button>
+        <button onclick="togglePause()" id="pause-btn">暫停</button>
+      </div>
+    </div>
+
+    <!-- 即時數值 -->
+    <div id="live-stats">
+      <div class="stat-row"><span class="stat-label">WS 原始深度</span>    <span class="stat-val" id="s-ws-raw">--</span></div>
+      <div class="stat-row"><span class="stat-label">JS EMA 平滑深度</span><span class="stat-val" id="s-smooth">--</span></div>
+      <div class="stat-row"><span class="stat-label">單幀深度跳變量</span> <span class="stat-val" id="s-delta">--</span></div>
+      <div class="stat-row"><span class="stat-label">捏合觸發</span>       <span class="stat-val" id="s-trig">待機</span></div>
+      <div class="stat-row"><span class="stat-label">target A/B/C</span>   <span class="stat-val" id="s-target">--</span></div>
+      <div class="stat-row"><span class="stat-label">mesh scale X/Y/Z</span><span class="stat-val" id="s-scale">--</span></div>
+      <div class="stat-row"><span class="stat-label">WS 接收頻率</span>    <span class="stat-val" id="s-wsrate">--</span></div>
+      <div class="stat-row"><span class="stat-label">渲染 FPS</span>       <span class="stat-val" id="s-fps">--</span></div>
+    </div>
+
+    <!-- 迷你波形圖 -->
+    <div id="mini-chart">
+      <div style="font-size:10px;color:rgba(120,160,220,0.60);margin-bottom:3px;">
+        深度波形（藍=原始 / 綠=平滑）最近 120 幀
+      </div>
+      <canvas id="wave-canvas" height="60"></canvas>
+    </div>
+
+    <!-- 滾動 log -->
+    <div id="log-scroll"></div>
+  </div>
+
+  <div id="info">AR 最佳曲率 · 等待神經橋接...</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ══════════════════════════════════════════════════════
+// ── Three.js 初始化 ───────────────────────────────────
+// ══════════════════════════════════════════════════════
+const canvas = document.getElementById('glc');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x06060e, 1);
+const scene = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(52, 1, 0.001, 100);
+cam.position.set(0,0,0);
+cam.lookAt(0,0,1);
+
+let A=1.4, B=1.0, C=1.2, FOVDEG=45, RAD=16;
+
+const TW=2048, TH=1280;
+const uiCvs = document.createElement('canvas');
+uiCvs.width=TW; uiCvs.height=TH;
+const uc = uiCvs.getContext('2d');
+const tex = new THREE.CanvasTexture(uiCvs);
+tex.wrapS = THREE.RepeatWrapping;
+tex.repeat.set(-1,1);
+tex.offset.set(1,0);
+let mesh = null;
+
+function buildMesh(){
+  if(mesh){scene.remove(mesh);mesh.geometry.dispose();mesh.material.dispose();}
+  const fovRad = FOVDEG*Math.PI/180;
+  const fovV = fovRad*0.7;
+  const geo = new THREE.SphereGeometry(1,64,40,
+    Math.PI/2-fovRad, fovRad*2, Math.PI/2-fovV, fovV*2);
+  const mat = new THREE.MeshBasicMaterial({map:tex, side:THREE.BackSide, transparent:true, opacity:1});
+  mesh = new THREE.Mesh(geo, mat);
+  mesh.scale.set(A, B, C);
+  scene.add(mesh);
+}
+
+const ITEMS=[
+  {icon:'🔋',label:'電量',col:'#4caf50'},{icon:'🎤',label:'語音',col:'#2196f3'},
+  {icon:'📷',label:'相機',col:'#9c27b0'},{icon:'🗺️',label:'地圖',col:'#ff9800'},
+  {icon:'⏰',label:'時間',col:'#00bcd4'},{icon:'📡',label:'連線',col:'#8bc34a'},
+];
+const ANCH=[
+  {u:0.10,v:0.82,lines:['2026.04.29','16:42'],col:'#7ec8e3'},
+  {u:0.90,v:0.82,lines:['🔋 78%','5G ◉'],col:'#4caf50'},
+  {u:0.10,v:0.18,lines:['📍 南屯區','↑ 230m'],col:'#ff9800'},
+  {u:0.90,v:0.18,lines:['就緒','通知×3'],col:'#9c27b0'},
+];
+
+function rr(ctx,x,y,w,h,r){
+  r=Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r,y+h);ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);
+  ctx.closePath();
+}
+
+function drawUI(){
+  uc.clearRect(0,0,TW,TH);
+  uc.fillStyle='rgba(5,7,20,0.55)';uc.fillRect(0,0,TW,TH);
+  uc.strokeStyle='rgba(65,105,200,0.10)';uc.lineWidth=1;
+  for(let i=0;i<=16;i++){const x=TW*i/16;uc.beginPath();uc.moveTo(x,0);uc.lineTo(x,TH);uc.stroke();}
+  for(let j=0;j<=10;j++){const y=TH*j/10;uc.beginPath();uc.moveTo(0,y);uc.lineTo(TW,y);uc.stroke();}
+  const CX=TW*0.5,CY=TH*0.5;
+  const WW=TW*0.52,WH=TH*0.52,WX=CX-WW/2,WY=CY-WH/2,WR=RAD*3.5,HDR=WH*0.155;
+  uc.fillStyle='rgba(4,7,22,0.93)';rr(uc,WX,WY,WW,WH,WR);uc.fill();
+  uc.strokeStyle='rgba(75,140,255,0.85)';uc.lineWidth=3.5;rr(uc,WX,WY,WW,WH,WR);uc.stroke();
+  uc.fillStyle='rgba(22,52,158,0.90)';
+  uc.beginPath();uc.moveTo(WX+WR,WY);uc.lineTo(WX+WW-WR,WY);uc.arcTo(WX+WW,WY,WX+WW,WY+WR,WR);
+  uc.lineTo(WX+WW,WY+HDR);uc.lineTo(WX,WY+HDR);uc.lineTo(WX,WY+WR);uc.arcTo(WX,WY,WX+WR,WY,WR);
+  uc.closePath();uc.fill();
+  uc.font='bold 52px Arial';uc.fillStyle='rgba(200,225,255,0.95)';
+  uc.textAlign='center';uc.textBaseline='middle';uc.fillText('🗺️  導航面板',CX,WY+HDR/2);
+  uc.strokeStyle='rgba(75,140,255,0.28)';uc.lineWidth=1.5;
+  uc.beginPath();uc.moveTo(WX+18,WY+HDR);uc.lineTo(WX+WW-18,WY+HDR);uc.stroke();
+  const ROWS=[
+    {t:'目的地：台中國立美術館',col:'rgba(220,235,255,0.92)',sz:43,b:true},
+    {t:'距離 2.4km · 步行 28分',col:'rgba(150,192,248,0.80)',sz:37,b:false},
+    {t:'預計到達：17:08',col:'rgba(150,192,248,0.80)',sz:37,b:false},
+    {t:'▸ 右轉中港路，步行 150m',col:'rgba(65,210,135,0.92)',sz:39,b:false},
+    {t:'▸ 左轉台灣大道，800m',col:'rgba(125,182,248,0.62)',sz:35,b:false},
+  ];
+  const cH=WH-HDR-18;
+  ROWS.forEach((r,i)=>{
+    const ty=WY+HDR+14+cH*(i+0.5)/ROWS.length;
+    uc.font=`${r.b?'bold ':' '}${r.sz}px Arial`;
+    uc.fillStyle=r.col;uc.textAlign='center';uc.textBaseline='middle';uc.fillText(r.t,CX,ty);
+  });
+  const RX=TW*0.43,RY=TH*0.43,N=ITEMS.length;
+  ITEMS.forEach((item,i)=>{
+    const angle=(Math.PI*2/N)*i-Math.PI/2;
+    const px=CX+RX*Math.cos(angle),py=CY+RY*Math.sin(angle),r=66;
+    const gw=uc.createRadialGradient(px,py,r*0.2,px,py,r*1.9);
+    gw.addColorStop(0,item.col+'88');gw.addColorStop(1,item.col+'00');
+    uc.fillStyle=gw;uc.beginPath();uc.arc(px,py,r*1.9,0,Math.PI*2);uc.fill();
+    uc.fillStyle='rgba(2,5,18,0.86)';uc.beginPath();uc.arc(px,py,r,0,Math.PI*2);uc.fill();
+    uc.strokeStyle=item.col;uc.lineWidth=4;uc.beginPath();uc.arc(px,py,r,0,Math.PI*2);uc.stroke();
+    uc.font='48px Arial';uc.textAlign='center';uc.textBaseline='middle';uc.fillStyle='#fff';
+    uc.fillText(item.icon,px,py-r*0.1);
+    uc.font='26px Arial';uc.fillStyle='rgba(200,220,245,0.82)';uc.fillText(item.label,px,py+r*0.56);
+  });
+  uc.strokeStyle='rgba(95,150,255,0.10)';uc.lineWidth=2;uc.setLineDash([8,20]);
+  uc.beginPath();uc.ellipse(CX,CY,RX,RY,0,0,Math.PI*2);uc.stroke();uc.setLineDash([]);
+  ANCH.forEach(a=>{
+    const px=TW*a.u,py=TH*(1-a.v),fs=35,lh=48,bw=280,bh=lh*a.lines.length+26,pr=bh/2;
+    const bx=a.u>0.5?px-bw-8:px+8,by=py-bh/2;
+    uc.fillStyle='rgba(2,5,18,0.84)';rr(uc,bx,by,bw,bh,pr);uc.fill();
+    uc.strokeStyle=a.col+'88';uc.lineWidth=2;rr(uc,bx,by,bw,bh,pr);uc.stroke();
+    uc.fillStyle=a.col+'66';uc.beginPath();uc.arc(bx+pr,by+bh/2,pr,0,Math.PI*2);uc.fill();
+    a.lines.forEach((line,li)=>{
+      uc.font=`${li===0?'bold ':' '}${fs}px Arial`;
+      uc.fillStyle=li===0?'#fff':'rgba(165,202,228,0.82)';
+      uc.textAlign='left';uc.textBaseline='middle';
+      uc.fillText(line,bx+pr*2+6,by+24+lh*(li+0.5)-lh*0.18);
+    });
+  });
+  uc.strokeStyle='rgba(255,255,255,0.24)';uc.lineWidth=2.5;
+  const cl=26;
+  uc.beginPath();uc.moveTo(CX-cl,CY);uc.lineTo(CX+cl,CY);
+  uc.moveTo(CX,CY-cl);uc.lineTo(CX,CY+cl);uc.stroke();
+  uc.beginPath();uc.arc(CX,CY,5,0,Math.PI*2);
+  uc.fillStyle='rgba(255,255,255,0.30)';uc.fill();
+  tex.needsUpdate=true;
+}
+
+let drag=false,lx=0,ly=0,yaw=0,pitch=0;
+function applyRot(){
+  const tx=Math.sin(yaw)*Math.cos(pitch),ty=Math.sin(pitch),tz=Math.cos(yaw)*Math.cos(pitch);
+  cam.lookAt(tx,ty,tz);
+}
+canvas.addEventListener('mousedown',e=>{drag=true;lx=e.clientX;ly=e.clientY;});
+window.addEventListener('mouseup',()=>drag=false);
+window.addEventListener('mousemove',e=>{
+  if(!drag)return;
+  yaw+=(e.clientX-lx)*0.004;pitch+=(e.clientY-ly)*0.004;
+  pitch=Math.max(-0.7,Math.min(0.7,pitch));
+  lx=e.clientX;ly=e.clientY;applyRot();
+});
+canvas.addEventListener('wheel',e=>{
+  FOVDEG=Math.max(20,Math.min(90,FOVDEG+e.deltaY*0.05));
+  document.getElementById('sf').value=FOVDEG;
+  document.getElementById('vf').textContent=Math.round(FOVDEG)+'°';
+  buildMesh();
+},{passive:true});
+
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  renderer.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();
+}
+window.addEventListener('resize',resize);resize();
+
+function upd(){
+  A=parseFloat(document.getElementById('sa').value);
+  B=parseFloat(document.getElementById('sb').value);
+  C=parseFloat(document.getElementById('sc').value);
+  FOVDEG=parseInt(document.getElementById('sf').value);
+  RAD=parseInt(document.getElementById('sr').value);
+  document.getElementById('va').textContent=A.toFixed(1);
+  document.getElementById('vb').textContent=B.toFixed(1);
+  document.getElementById('vc').textContent=C.toFixed(1);
+  document.getElementById('vf').textContent=FOVDEG+'°';
+  document.getElementById('vr').textContent=RAD;
+  drawUI();buildMesh();
+  targetA=A;targetB=B;targetC=C;
+}
+function pre(a,b,c,f,r){
+  document.getElementById('sa').value=a;document.getElementById('sb').value=b;
+  document.getElementById('sc').value=c;document.getElementById('sf').value=f;
+  document.getElementById('sr').value=r;upd();
+}
+
+// ══════════════════════════════════════════════════════
+// ── Log 系統 ──────────────────────────────────────────
+// ══════════════════════════════════════════════════════
+const LOG_MAX = 200;
+const logLines = [];
+let logPaused = false;
+let logVisible = true;
+
+// 波形歷史
+const WAVE_LEN = 120;
+const waveRaw = new Float32Array(WAVE_LEN);
+const waveSmooth = new Float32Array(WAVE_LEN);
+let waveIdx = 0;
+
+const logScroll = document.getElementById('log-scroll');
+const waveCanvas = document.getElementById('wave-canvas');
+const waveCtx = waveCanvas.getContext('2d');
+
+function ts(){
+  const d=new Date();
+  return `${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}.${String(d.getMilliseconds()).padStart(3,'0')}`;
+}
+
+function addLog(text, type='sys'){
+  if(logPaused) return;
+  logLines.push({text:`[${ts()}] ${text}`, type});
+  if(logLines.length > LOG_MAX) logLines.shift();
+  const div = document.createElement('div');
+  div.className=`log-line ${type}`;
+  div.textContent = logLines[logLines.length-1].text;
+  logScroll.appendChild(div);
+  if(logScroll.children.length > LOG_MAX) logScroll.removeChild(logScroll.firstChild);
+  logScroll.scrollTop = logScroll.scrollHeight;
+}
+
+function clearLog(){
+  logLines.length=0;
+  logScroll.innerHTML='';
+}
+
+function exportLog(){
+  const blob = new Blob([logLines.map(l=>l.text).join('\n')], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`asi_felis_log_${Date.now()}.txt`;
+  a.click();
+}
+
+function togglePause(){
+  logPaused=!logPaused;
+  document.getElementById('pause-btn').textContent = logPaused?'繼續':'暫停';
+  document.getElementById('pause-btn').style.background = logPaused?'rgba(100,40,40,0.80)':'';
+}
+
+function toggleLog(){
+  logVisible=!logVisible;
+  document.getElementById('log-panel').classList.toggle('hidden',!logVisible);
+}
+
+// 波形繪製
+function drawWave(){
+  const W = waveCanvas.parentElement.clientWidth - 20;
+  const H = 60;
+  waveCanvas.width = W;
+  waveCanvas.height = H;
+  waveCtx.clearRect(0,0,W,H);
+
+  const minV=-0.40, maxV=0.05, range=maxV-minV;
+  const toY = v => H - ((Math.max(minV,Math.min(maxV,v))-minV)/range)*H;
+
+  // 中線
+  waveCtx.strokeStyle='rgba(80,100,180,0.25)';waveCtx.lineWidth=1;
+  waveCtx.beginPath();waveCtx.moveTo(0,toY(0));waveCtx.lineTo(W,toY(0));waveCtx.stroke();
+
+  // 觸發線
+  waveCtx.strokeStyle='rgba(255,80,80,0.30)';
+  waveCtx.beginPath();waveCtx.moveTo(0,toY(-0.15));waveCtx.lineTo(W,toY(-0.15));waveCtx.stroke();
+
+  // 原始波形（藍）
+  waveCtx.strokeStyle='rgba(80,160,255,0.70)';waveCtx.lineWidth=1.5;
+  waveCtx.beginPath();
+  for(let i=0;i<WAVE_LEN;i++){
+    const xi=(i/WAVE_LEN)*W;
+    const dataIdx=(waveIdx+i)%WAVE_LEN;
+    const y=toY(waveRaw[dataIdx]);
+    i===0?waveCtx.moveTo(xi,y):waveCtx.lineTo(xi,y);
+  }
+  waveCtx.stroke();
+
+  // 平滑波形（綠）
+  waveCtx.strokeStyle='rgba(80,255,140,0.85)';waveCtx.lineWidth=2;
+  waveCtx.beginPath();
+  for(let i=0;i<WAVE_LEN;i++){
+    const xi=(i/WAVE_LEN)*W;
+    const dataIdx=(waveIdx+i)%WAVE_LEN;
+    const y=toY(waveSmooth[dataIdx]);
+    i===0?waveCtx.moveTo(xi,y):waveCtx.lineTo(xi,y);
+  }
+  waveCtx.stroke();
+}
+
+// ══════════════════════════════════════════════════════
+// ── 神經橋接核心 ──────────────────────────────────────
+// ══════════════════════════════════════════════════════
+let targetA=A, targetB=B, targetC=C;
+let smoothDepth=0.0;
+const SMOOTH_ALPHA=0.12;
+
+let wsDepth=0.0;
+let wsTriggered=false;
+
+// WS 頻率計量
+let wsCount=0, wsRateDisplay=0;
+setInterval(()=>{wsRateDisplay=wsCount;wsCount=0;}, 1000);
+
+// FPS 計量
+let frameCount=0, fpsDisplay=0;
+setInterval(()=>{fpsDisplay=frameCount;frameCount=0;}, 1000);
+
+// 跳變偵測門檻
+const JUMP_THRESHOLD = 0.08;
+let prevWsDepth = 0.0;
+
+// log 降頻（避免每幀都 log 造成效能問題）
+let logFrameCounter = 0;
+const LOG_EVERY_N_FRAMES = 30; // 每 30 幀記錄一次 lerp 狀態
+
+function connectSensoryNode(){
+  const ws = new WebSocket('ws://localhost:8765');
+
+  ws.onopen = () => {
+    document.getElementById('info').textContent='🟢 神經橋接已連線！移動手部驅動 UI...';
+    document.getElementById('info').style.color='#4caf50';
+    addLog('WebSocket 連線成功 ws://localhost:8765', 'sys');
+  };
+
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    const newDepth = data.relative_depth;
+    const newTrig = data.is_trigger;
+    wsCount++;
+
+    // ── 跳變偵測（這是找出問題根源的關鍵）
+    const delta = Math.abs(newDepth - prevWsDepth);
+    if(delta > JUMP_THRESHOLD){
+      addLog(
+        `⚡ 跳變! raw: ${prevWsDepth.toFixed(4)} → ${newDepth.toFixed(4)} (Δ${delta.toFixed(4)})`,
+        'jump'
+      );
+    }
+
+    // ── 觸發事件 log
+    if(newTrig && !wsTriggered){
+      addLog(`🎯 捏合觸發 depth=${newDepth.toFixed(4)}`, 'trig');
+    }
+
+    prevWsDepth = newDepth;
+    wsDepth = newDepth;
+    wsTriggered = newTrig;
+  };
+
+  ws.onclose = () => {
+    document.getElementById('info').textContent='🔴 神經橋接斷線，5秒後重連...';
+    document.getElementById('info').style.color='#ff9800';
+    addLog('WebSocket 斷線', 'sys');
+    setTimeout(connectSensoryNode, 5000);
+  };
+
+  ws.onerror = (e) => {
+    addLog(`WebSocket 錯誤: ${e.type}`, 'sys');
+  };
+}
+
+connectSensoryNode();
+
+// ══════════════════════════════════════════════════════
+// ── Animate 主迴圈 ────────────────────────────────────
+// ══════════════════════════════════════════════════════
+let lastStatTime = 0;
+
+function animate(){
+  requestAnimationFrame(animate);
+  frameCount++;
+  logFrameCounter++;
+
+  if(mesh){
+    const prevSmooth = smoothDepth;
+    smoothDepth += (wsDepth - smoothDepth) * SMOOTH_ALPHA;
+
+    const safeDepth = Math.min(Math.abs(smoothDepth), 0.35);
+
+    if(wsTriggered){
+      targetA = A * 1.08;
+      targetB = B * 1.08;
+      targetC = C * 0.88;
+    } else {
+      const hoverOffset = safeDepth * 0.18;
+      targetA = A + hoverOffset;
+      targetB = B + hoverOffset;
+      targetC = C - hoverOffset * 0.15;
+    }
+
+    mesh.scale.x += (targetA - mesh.scale.x) * 0.08;
+    mesh.scale.y += (targetB - mesh.scale.y) * 0.08;
+    mesh.scale.z += (targetC - mesh.scale.z) * 0.08;
+
+    // ── 波形更新
+    waveRaw[waveIdx] = wsDepth;
+    waveSmooth[waveIdx] = smoothDepth;
+    waveIdx = (waveIdx+1) % WAVE_LEN;
+
+    // ── 即時數值面板更新（每 100ms 刷一次即可）
+    const now = performance.now();
+    if(now - lastStatTime > 100){
+      lastStatTime = now;
+
+      const rawDelta = Math.abs(wsDepth - prevSmooth);
+
+      document.getElementById('s-ws-raw').textContent = wsDepth.toFixed(4);
+      document.getElementById('s-ws-raw').className = 'stat-val' + (Math.abs(wsDepth)>0.25?' warn':'');
+
+      document.getElementById('s-smooth').textContent = smoothDepth.toFixed(4);
+      document.getElementById('s-smooth').className = 'stat-val ok';
+
+      document.getElementById('s-delta').textContent = rawDelta.toFixed(4);
+      document.getElementById('s-delta').className = 'stat-val' + (rawDelta>JUMP_THRESHOLD?' warn':'');
+
+      const trigEl = document.getElementById('s-trig');
+      trigEl.textContent = wsTriggered ? '🔴 TRIGGERED' : '⚪ 待機';
+      trigEl.className = 'stat-val' + (wsTriggered?' trigger':'');
+
+      document.getElementById('s-target').textContent =
+        `${targetA.toFixed(3)} / ${targetB.toFixed(3)} / ${targetC.toFixed(3)}`;
+      document.getElementById('s-scale').textContent =
+        `${mesh.scale.x.toFixed(3)} / ${mesh.scale.y.toFixed(3)} / ${mesh.scale.z.toFixed(3)}`;
+
+      document.getElementById('s-wsrate').textContent = `${wsRateDisplay} msg/s`;
+      document.getElementById('s-wsrate').className = 'stat-val' + (wsRateDisplay<20?' warn':' ok');
+
+      document.getElementById('s-fps').textContent = `${fpsDisplay} fps`;
+      document.getElementById('s-fps').className = 'stat-val' + (fpsDisplay<30?' warn':' ok');
+
+      drawWave();
+    }
+
+    // ── 定期 log（每 N 幀記一次 LERP 狀態）
+    if(logFrameCounter >= LOG_EVERY_N_FRAMES){
+      logFrameCounter = 0;
+      addLog(
+        `LERP scale=(${mesh.scale.x.toFixed(3)},${mesh.scale.y.toFixed(3)},${mesh.scale.z.toFixed(3)}) ` +
+        `tgt=(${targetA.toFixed(3)},${targetB.toFixed(3)},${targetC.toFixed(3)}) ` +
+        `smooth=${smoothDepth.toFixed(4)}`,
+        'lerp'
+      );
+    }
+  }
+
+  renderer.render(scene, cam);
+}
+
+// ── 初始化
+addLog('ellipsoid_v9 初始化完成', 'sys');
+addLog(`基準參數 A=${A} B=${B} C=${C} FOV=${FOVDEG}°`, 'sys');
+drawUI();
+buildMesh();
+animate();
+</script>
+</body>
+</html>

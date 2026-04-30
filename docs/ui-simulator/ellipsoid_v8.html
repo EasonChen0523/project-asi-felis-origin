@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>橢球 Texture Mapping v8 — MediaPipe 神經橋接修正版</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#06060e;color:#fff;font-family:Arial,sans-serif;overflow:hidden;}
+#app{width:100vw;height:100vh;position:relative;}
+canvas#glc{width:100%;height:100%;display:block;}
+#ctrl{
+  position:absolute;top:0;left:0;right:0;
+  background:rgba(4,5,16,0.92);border-bottom:1px solid rgba(60,110,220,0.20);
+  padding:8px 14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;
+}
+.cg{display:flex;align-items:center;gap:6px;}
+.cg label{font-size:11px;color:rgba(145,185,255,0.75);white-space:nowrap;}
+.cg input[type=range]{width:96px;accent-color:#4488ff;}
+.cg .v{font-size:12px;color:#fff;min-width:32px;}
+.pb{display:flex;gap:5px;flex-wrap:wrap;}
+.pb button{
+  font-size:10px;padding:4px 8px;
+  background:rgba(28,48,108,0.70);border:1px solid rgba(65,108,200,0.50);
+  color:rgba(165,200,255,0.88);border-radius:4px;cursor:pointer;
+}
+.pb button:hover{background:rgba(48,78,168,0.80);}
+#info{
+  position:absolute;bottom:0;left:0;right:0;
+  background:rgba(3,4,14,0.88);border-top:1px solid rgba(60,110,220,0.14);
+  padding:7px 14px;font-size:11px;color:rgba(125,170,220,0.78);
+}
+#hint{position:absolute;top:52px;right:12px;font-size:10px;color:rgba(90,130,200,0.50);}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="glc"></canvas>
+  <div id="ctrl">
+    <div class="cg"><label>水平 a</label>
+      <input type="range" id="sa" min="0.3" max="4" value="1.4" step="0.05" oninput="upd()">
+      <span class="v" id="va">1.4</span></div>
+    <div class="cg"><label>垂直 b</label>
+      <input type="range" id="sb" min="0.3" max="4" value="1.0" step="0.05" oninput="upd()">
+      <span class="v" id="vb">1.0</span></div>
+    <div class="cg"><label>深度 c</label>
+      <input type="range" id="sc" min="0.3" max="4" value="1.2" step="0.05" oninput="upd()">
+      <span class="v" id="vc">1.2</span></div>
+    <div class="cg"><label>視野角 FOV</label>
+      <input type="range" id="sf" min="20" max="90" value="45" step="1" oninput="upd()">
+      <span class="v" id="vf">45°</span></div>
+    <div class="cg"><label>視窗圓角</label>
+      <input type="range" id="sr" min="0" max="60" value="16" step="1" oninput="upd()">
+      <span class="v" id="vr">16</span></div>
+    <div class="pb">
+      <button onclick="pre(0.5,0.35,0.4,45,8)">極端弧形</button>
+      <button onclick="pre(1.4,1.0,1.2,45,16)">AR 最佳</button>
+      <button onclick="pre(1.4,1.0,0.5,45,16)">淺景深</button>
+      <button onclick="pre(1.4,1.0,3.5,45,16)">深景深</button>
+      <button onclick="pre(3.5,3.5,3.5,45,4)">近似平面</button>
+      <button onclick="pre(1.4,1.0,1.2,45,0)">直角視窗</button>
+      <button onclick="pre(1.4,1.0,1.2,45,58)">Pill 視窗</button>
+    </div>
+  </div>
+  <div id="hint">拖曳旋轉環視 · 滾輪調整 FOV</div>
+  <div id="info">AR 最佳曲率 · 等待神經橋接...</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const canvas=document.getElementById('glc');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setClearColor(0x06060e,1);
+
+const scene=new THREE.Scene();
+const cam=new THREE.PerspectiveCamera(52,1,0.001,100);
+cam.position.set(0,0,0);
+cam.lookAt(0,0,1);
+
+let A=1.4,B=1.0,C=1.2,FOVDEG=45,RAD=16;
+
+// ── UI Texture ───────────────────────────────────────────
+const TW=2048,TH=1280;
+const uiCvs=document.createElement('canvas');
+uiCvs.width=TW;uiCvs.height=TH;
+const uc=uiCvs.getContext('2d');
+const tex=new THREE.CanvasTexture(uiCvs);
+tex.wrapS=THREE.RepeatWrapping;
+tex.repeat.set(-1,1);
+tex.offset.set(1,0);
+
+let mesh=null;
+
+function buildMesh(){
+  if(mesh){scene.remove(mesh);mesh.geometry.dispose();mesh.material.dispose();}
+  const fovRad=FOVDEG*Math.PI/180;
+  const fovV=fovRad*0.7;
+  const geo=new THREE.SphereGeometry(
+    1,64,40,
+    Math.PI/2-fovRad,fovRad*2,
+    Math.PI/2-fovV,fovV*2
+  );
+  const mat=new THREE.MeshBasicMaterial({map:tex,side:THREE.BackSide,transparent:true,opacity:1});
+  mesh=new THREE.Mesh(geo,mat);
+  // ── 修正點 1：mesh 初始 scale 直接設為 A/B/C，LERP 從正確起點出發
+  mesh.scale.set(A,B,C);
+  scene.add(mesh);
+}
+
+// ── 繪製 UI Texture ──────────────────────────────────────
+const ITEMS=[
+  {icon:'🔋',label:'電量',col:'#4caf50'},
+  {icon:'🎤',label:'語音',col:'#2196f3'},
+  {icon:'📷',label:'相機',col:'#9c27b0'},
+  {icon:'🗺️',label:'地圖',col:'#ff9800'},
+  {icon:'⏰',label:'時間',col:'#00bcd4'},
+  {icon:'📡',label:'連線',col:'#8bc34a'},
+];
+const ANCH=[
+  {u:0.10,v:0.82,lines:['2026.04.29','16:42'],  col:'#7ec8e3'},
+  {u:0.90,v:0.82,lines:['🔋 78%','5G ◉'],       col:'#4caf50'},
+  {u:0.10,v:0.18,lines:['📍 南屯區','↑ 230m'],  col:'#ff9800'},
+  {u:0.90,v:0.18,lines:['就緒','通知×3'],        col:'#9c27b0'},
+];
+
+function rr(ctx,x,y,w,h,r){
+  r=Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r,y+h);ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);
+  ctx.closePath();
+}
+
+function drawUI(){
+  uc.clearRect(0,0,TW,TH);
+  uc.fillStyle='rgba(5,7,20,0.55)';uc.fillRect(0,0,TW,TH);
+  uc.strokeStyle='rgba(65,105,200,0.10)';uc.lineWidth=1;
+  for(let i=0;i<=16;i++){const x=TW*i/16;uc.beginPath();uc.moveTo(x,0);uc.lineTo(x,TH);uc.stroke();}
+  for(let j=0;j<=10;j++){const y=TH*j/10;uc.beginPath();uc.moveTo(0,y);uc.lineTo(TW,y);uc.stroke();}
+  const CX=TW*0.5,CY=TH*0.5;
+  const WW=TW*0.52,WH=TH*0.52;
+  const WX=CX-WW/2,WY=CY-WH/2;
+  const WR=RAD*3.5;
+  const HDR=WH*0.155;
+  uc.fillStyle='rgba(4,7,22,0.93)';rr(uc,WX,WY,WW,WH,WR);uc.fill();
+  uc.strokeStyle='rgba(75,140,255,0.85)';uc.lineWidth=3.5;rr(uc,WX,WY,WW,WH,WR);uc.stroke();
+  uc.fillStyle='rgba(22,52,158,0.90)';
+  uc.beginPath();
+  uc.moveTo(WX+WR,WY);uc.lineTo(WX+WW-WR,WY);uc.arcTo(WX+WW,WY,WX+WW,WY+WR,WR);
+  uc.lineTo(WX+WW,WY+HDR);uc.lineTo(WX,WY+HDR);
+  uc.lineTo(WX,WY+WR);uc.arcTo(WX,WY,WX+WR,WY,WR);
+  uc.closePath();uc.fill();
+  uc.font='bold 52px Arial';uc.fillStyle='rgba(200,225,255,0.95)';
+  uc.textAlign='center';uc.textBaseline='middle';
+  uc.fillText('🗺️  導航面板',CX,WY+HDR/2);
+  uc.strokeStyle='rgba(75,140,255,0.28)';uc.lineWidth=1.5;
+  uc.beginPath();uc.moveTo(WX+18,WY+HDR);uc.lineTo(WX+WW-18,WY+HDR);uc.stroke();
+  const ROWS=[
+    {t:'目的地：台中國立美術館',   col:'rgba(220,235,255,0.92)',sz:43,b:true},
+    {t:'距離 2.4km · 步行 28分',   col:'rgba(150,192,248,0.80)',sz:37,b:false},
+    {t:'預計到達：17:08',           col:'rgba(150,192,248,0.80)',sz:37,b:false},
+    {t:'▸ 右轉中港路，步行 150m',  col:'rgba(65,210,135,0.92)', sz:39,b:false},
+    {t:'▸ 左轉台灣大道，800m',     col:'rgba(125,182,248,0.62)',sz:35,b:false},
+  ];
+  const cH=WH-HDR-18;
+  ROWS.forEach((r,i)=>{
+    const ty=WY+HDR+14+cH*(i+0.5)/ROWS.length;
+    uc.font=`${r.b?'bold ':' '}${r.sz}px Arial`;
+    uc.fillStyle=r.col;uc.textAlign='center';uc.textBaseline='middle';
+    uc.fillText(r.t,CX,ty);
+  });
+  const RX=TW*0.43,RY=TH*0.43;
+  const N=ITEMS.length;
+  ITEMS.forEach((item,i)=>{
+    const angle=(Math.PI*2/N)*i-Math.PI/2;
+    const px=CX+RX*Math.cos(angle);
+    const py=CY+RY*Math.sin(angle);
+    const r=66;
+    const gw=uc.createRadialGradient(px,py,r*0.2,px,py,r*1.9);
+    gw.addColorStop(0,item.col+'88');gw.addColorStop(1,item.col+'00');
+    uc.fillStyle=gw;uc.beginPath();uc.arc(px,py,r*1.9,0,Math.PI*2);uc.fill();
+    uc.fillStyle='rgba(2,5,18,0.86)';uc.beginPath();uc.arc(px,py,r,0,Math.PI*2);uc.fill();
+    uc.strokeStyle=item.col;uc.lineWidth=4;uc.beginPath();uc.arc(px,py,r,0,Math.PI*2);uc.stroke();
+    uc.font='48px Arial';uc.textAlign='center';uc.textBaseline='middle';uc.fillStyle='#fff';
+    uc.fillText(item.icon,px,py-r*0.1);
+    uc.font='26px Arial';uc.fillStyle='rgba(200,220,245,0.82)';uc.fillText(item.label,px,py+r*0.56);
+  });
+  uc.strokeStyle='rgba(95,150,255,0.10)';uc.lineWidth=2;uc.setLineDash([8,20]);
+  uc.beginPath();uc.ellipse(CX,CY,RX,RY,0,0,Math.PI*2);uc.stroke();uc.setLineDash([]);
+  ANCH.forEach(a=>{
+    const px=TW*a.u,py=TH*(1-a.v);
+    const fs=35,lh=48,bw=280,bh=lh*a.lines.length+26;
+    const pr=bh/2;
+    const bx=a.u>0.5?px-bw-8:px+8,by=py-bh/2;
+    uc.fillStyle='rgba(2,5,18,0.84)';rr(uc,bx,by,bw,bh,pr);uc.fill();
+    uc.strokeStyle=a.col+'88';uc.lineWidth=2;rr(uc,bx,by,bw,bh,pr);uc.stroke();
+    uc.fillStyle=a.col+'66';uc.beginPath();uc.arc(bx+pr,by+bh/2,pr,0,Math.PI*2);uc.fill();
+    a.lines.forEach((line,li)=>{
+      uc.font=`${li===0?'bold ':' '}${fs}px Arial`;
+      uc.fillStyle=li===0?'#fff':'rgba(165,202,228,0.82)';
+      uc.textAlign='left';uc.textBaseline='middle';
+      uc.fillText(line,bx+pr*2+6,by+24+lh*(li+0.5)-lh*0.18);
+    });
+  });
+  uc.strokeStyle='rgba(255,255,255,0.24)';uc.lineWidth=2.5;
+  const cl=26;
+  uc.beginPath();
+  uc.moveTo(CX-cl,CY);uc.lineTo(CX+cl,CY);
+  uc.moveTo(CX,CY-cl);uc.lineTo(CX,CY+cl);uc.stroke();
+  uc.beginPath();uc.arc(CX,CY,5,0,Math.PI*2);
+  uc.fillStyle='rgba(255,255,255,0.30)';uc.fill();
+  tex.needsUpdate=true;
+}
+
+// ── 拖曳旋轉 ────────────────────────────────────────────
+let drag=false,lx=0,ly=0,yaw=0,pitch=0;
+function applyRot(){
+  const tx=Math.sin(yaw)*Math.cos(pitch);
+  const ty=Math.sin(pitch);
+  const tz=Math.cos(yaw)*Math.cos(pitch);
+  cam.lookAt(tx,ty,tz);
+}
+canvas.addEventListener('mousedown',e=>{drag=true;lx=e.clientX;ly=e.clientY;});
+window.addEventListener('mouseup',()=>drag=false);
+window.addEventListener('mousemove',e=>{
+  if(!drag)return;
+  yaw+=(e.clientX-lx)*0.004;pitch+=(e.clientY-ly)*0.004;
+  pitch=Math.max(-0.7,Math.min(0.7,pitch));
+  lx=e.clientX;ly=e.clientY;applyRot();
+});
+canvas.addEventListener('wheel',e=>{
+  FOVDEG=Math.max(20,Math.min(90,FOVDEG+e.deltaY*0.05));
+  document.getElementById('sf').value=FOVDEG;
+  document.getElementById('vf').textContent=Math.round(FOVDEG)+'°';
+  buildMesh();
+},{passive:true});
+
+function resize(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  renderer.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();
+}
+window.addEventListener('resize',resize);resize();
+
+function upd(){
+  A=parseFloat(document.getElementById('sa').value);
+  B=parseFloat(document.getElementById('sb').value);
+  C=parseFloat(document.getElementById('sc').value);
+  FOVDEG=parseInt(document.getElementById('sf').value);
+  RAD=parseInt(document.getElementById('sr').value);
+  document.getElementById('va').textContent=A.toFixed(1);
+  document.getElementById('vb').textContent=B.toFixed(1);
+  document.getElementById('vc').textContent=C.toFixed(1);
+  document.getElementById('vf').textContent=FOVDEG+'°';
+  document.getElementById('vr').textContent=RAD;
+  drawUI();buildMesh();
+  // ── 修正點 2：滑桿更新時，同步重設 LERP 目標，避免飛回舊值
+  targetA=A;targetB=B;targetC=C;
+}
+
+function pre(a,b,c,f,r){
+  document.getElementById('sa').value=a;document.getElementById('sb').value=b;
+  document.getElementById('sc').value=c;document.getElementById('sf').value=f;
+  document.getElementById('sr').value=r;upd();
+}
+
+// ══════════════════════════════════════════════════════
+// ── 神經橋接核心（修正版）────────────────────────────
+// ══════════════════════════════════════════════════════
+
+// ── 修正點 3：target 與 mesh.scale 同步初始化，LERP 起點正確
+let targetA = A, targetB = B, targetC = C;
+
+// ── 修正點 4：深度使用獨立 EMA，不依賴 Python 端的 EMA
+//   Python EMA alpha=0.15 + 這裡再做一層平滑 = 過度平滑 → 遲鈍
+//   改為只在 JS 端做一次輕量平滑
+let smoothDepth = 0.0;
+const SMOOTH_ALPHA = 0.12; // 0=完全不跟，1=完全跟隨，0.12 是平衡點
+
+let wsDepth = 0.0;
+let wsTriggered = false;
+
+function connectSensoryNode(){
+  const ws = new WebSocket('ws://localhost:8765');
+
+  ws.onopen = () => {
+    document.getElementById('info').textContent = '🟢 神經橋接已連線！移動手部即可驅動 UI...';
+    document.getElementById('info').style.color = '#4caf50';
+  };
+
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    // ── 修正點 5：只更新原始數值，不在 onmessage 裡計算 target
+    // target 的計算移到 animate() 裡，與渲染幀同步，避免心跳感
+    wsDepth = data.relative_depth;
+    wsTriggered = data.is_trigger;
+  };
+
+  ws.onclose = () => {
+    document.getElementById('info').textContent = '🔴 神經橋接斷線，5秒後重連...';
+    document.getElementById('info').style.color = '#ff9800';
+    setTimeout(connectSensoryNode, 5000);
+  };
+}
+
+connectSensoryNode();
+
+// ── 修正點 6：animate() 同時負責平滑 + target 計算 + LERP
+//   全部在同一幀執行，節奏一致，不再有 30Hz vs 60Hz 衝突
+function animate(){
+  requestAnimationFrame(animate);
+
+  if(mesh){
+    // Step A：對原始深度做 JS 端 EMA 平滑
+    smoothDepth += (wsDepth - smoothDepth) * SMOOTH_ALPHA;
+
+    // Step B：從平滑後的深度計算 target（每幀重新計算，而非 onmessage 才更新）
+    const safeDepth = Math.min(Math.abs(smoothDepth), 0.35);
+
+    if(wsTriggered){
+      // 捏合觸發：橢球縮進，給予明確的空間感回饋
+      targetA = A * 1.08;
+      targetB = B * 1.08;
+      targetC = C * 0.88;
+      document.getElementById('info').textContent =
+        `[捏合觸發] 深度: ${smoothDepth.toFixed(3)}`;
+      document.getElementById('info').style.color = '#ff4444';
+    } else {
+      // 待機：深度 0→0.35 線性映射到細膩的 scale 偏移
+      // 修正點 7：係數縮小，避免 scale 變化太誇張
+      const hoverOffset = safeDepth * 0.18;
+      targetA = A + hoverOffset;
+      targetB = B + hoverOffset;
+      targetC = C - hoverOffset * 0.15;
+      document.getElementById('info').textContent =
+        `[感知中] 深度: ${smoothDepth.toFixed(3)} | 偏移: +${hoverOffset.toFixed(3)}`;
+      document.getElementById('info').style.color = 'rgba(125,170,220,0.78)';
+    }
+
+    // Step C：LERP 追蹤，每幀只靠近 8%（比原本 15% 更柔和）
+    // 修正點 8：降低 LERP 速率，視覺更像「漂浮」而非「抖動追蹤」
+    mesh.scale.x += (targetA - mesh.scale.x) * 0.08;
+    mesh.scale.y += (targetB - mesh.scale.y) * 0.08;
+    mesh.scale.z += (targetC - mesh.scale.z) * 0.08;
+  }
+
+  renderer.render(scene,cam);
+}
+
+// ── 初始化 ──────────────────────────────────────────────
+drawUI();
+buildMesh();
+animate();
+</script>
+</body>
+</html>

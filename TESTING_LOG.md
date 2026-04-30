@@ -264,3 +264,61 @@ WSL2 虛擬化層缺乏完整 udev 支援，無法控制 USB interface 授權。
 - WSL2 即時 Webcam：❌ 技術瓶頸，暫無解法，停止嘗試
 - Windows 原生即時辨識：✅ 穩定可用（已驗證，FPS 19-29）
 - 待驗證：Luma Ultra 在 WSL2 的兼容性（硬體到貨後）
+
+## 2026-04-29 — M1 階段結案與里程碑修正
+
+### M1 完成狀態確認
+
+| 項目 | 狀態 |
+|------|------|
+| VITURE SDK Hello World | ✅ 完成 |
+| 黑足貓 System Prompt v4 | ✅ 完成 |
+| 感知管線（Gemma/Whisper/PaddleOCR） | ✅ 完成 |
+| WSL2 視覺/音訊管線 | ✅ 完成 |
+| UI 模擬器設計參數驗證 | ✅ 完成 |
+| MediaPipe Z 軸深度邏輯驗證 | ✅ 概念驗證完成 |
+| WSL2 USB 複合設備死鎖 | ⚠️ 已知技術瓶頸，架構限制，停止嘗試 |
+| MediaPipe 抖動問題 | ⏸️ 暫停，等 M5 硬體深度相機解決 |
+| Luma Ultra 實機 SDK 驗證 | ⏳ 待硬體到貨 |
+
+### MediaPipe 角色重新定位
+
+- **M1 期間**：概念驗證工具，確認 Z 軸深度演算法可行 ✅
+- **M5 期間**：手部 landmark 識別輔助角色
+- **深度來源**：改由 VITURE SDK stereo depth（硬體雙目相機）提供，不依賴單目估算
+
+### 手勢互動定位確認
+
+- 手勢為「語音不方便時的替代輸入」，非主要互動模式
+- 整合前提：AR overlay 穩定 + 語音指令可正常操作
+
+### 完整里程碑
+
+**M2（實機感知驗證）**：Luma Ultra 到貨後啟動
+- VITURE SDK RGB callback 實測
+- IMU / 6DoF pose 精度評估
+- VSync 同步實測
+- USB HID PID 確認（main.cpp 第 36 行）
+
+**M3（顯示輸出驗證）**
+- OpenGL SBS 3840×1080 framebuffer 建立
+- set_display_mode(0x32) 切換 3D SBS
+- 左右眼正確分流確認
+- 電致變色鏡片測試
+
+**M4（黑足貓核心整合）**
+- Gemma 4 E4B 在 Jetson Orin NX 推論
+- 語音指令端對端驗證（麥克風→Whisper→E4B）
+- System Prompt v4 在 Jetson 上行為確認
+
+**M5（AR Overlay）**
+- Step 0：SBS 顯示穩定（M3 前提）
+- Step 1：pose_get → 6DoF 頭部追蹤
+- Step 2：world_anchor → AR UI 空間錨定
+- Step 3：gesture_detect → 手勢互動（備援輸入）
+  - 深度來源：VITURE SDK stereo depth
+
+**M6（空間互動融合）**
+- 頭部追蹤 + 手勢 + 語音三輸入融合
+- 動態鏡片透光（戶外/室內自適應）
+- 完整 NeoWalker 使用情境驗證
