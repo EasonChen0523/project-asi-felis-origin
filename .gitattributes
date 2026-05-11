@@ -1,0 +1,63 @@
+# ── Default: auto-detect text, normalize to LF in repo ──────
+# Files identified as text are converted to LF on commit, and to native
+# line endings on checkout (so Windows devs still see CRLF locally).
+* text=auto eol=lf
+
+# ── Source code (LF in repo, LF on checkout for all platforms) ─
+# Forces LF even on Windows checkout — ensures Jetson / Linux deploy
+# never sees stray CRLF from a Windows-only commit.
+*.cpp       text eol=lf
+*.h         text eol=lf
+*.hpp       text eol=lf
+*.c         text eol=lf
+
+# ── Build / config files (LF) ───────────────────────────────
+*.cmake     text eol=lf
+CMakeLists.txt   text eol=lf
+*.yaml      text eol=lf
+*.yml       text eol=lf
+*.toml      text eol=lf
+*.json      text eol=lf
+
+# ── Shell scripts MUST be LF (or Linux will refuse to run them) ─
+*.sh        text eol=lf
+
+# ── PowerShell / Windows scripts: CRLF is fine, but LF also works ─
+*.ps1       text eol=crlf
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+
+# ── Documentation (LF) ──────────────────────────────────────
+*.md        text eol=lf
+*.txt       text eol=lf
+LICENSE     text eol=lf
+NOTICE      text eol=lf
+
+# ── Binary files (no diff, no line-ending conversion) ───────
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ppm       binary
+*.pdf       binary
+*.zip       binary
+*.tar       binary
+*.gz        binary
+
+# SDK runtime binaries (extra safety, even though .gitignore excludes them)
+*.dll       binary
+*.so        binary
+*.so.*      binary
+*.dylib     binary
+*.lib       binary
+*.a         binary
+*.exe       binary
+*.pdb       binary
+
+# Model files (for future M2-M4 inference assets)
+*.gguf      binary
+*.bin       binary
+*.onnx      binary
+*.pt        binary
+*.pth       binary
+*.safetensors binary
