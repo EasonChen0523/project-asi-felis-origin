@@ -137,10 +137,19 @@ else()
     )
 endif()
 
-# ── 編譯器警告等級 ──────────────────────────────────────────
-# SDK callback 風格容易吞錯誤，提早在 build time 攔截
+# ── 編譯器警告等級與字元編碼 ────────────────────────────────
+# SDK callback 風格容易吞錯誤，提早在 build time 攔截。
+# MSVC 在繁中 Windows 預設用 Big5 (CP950) 讀 source file，會把 UTF-8 中文註解
+# 誤判為非法字元，連帶炸出一堆 cascading syntax error。
+# /utf-8 旗標明確告訴 MSVC: source 是 UTF-8，execution character set 也是 UTF-8。
 if(MSVC)
-    target_compile_options(asi_hello PRIVATE /W4 /permissive-)
+    target_compile_options(asi_hello PRIVATE
+        /utf-8           # source + execution charset 都用 UTF-8
+        /W4              # 警告等級 4（嚴格）
+        /permissive-     # 嚴格 C++ 標準遵循
+    )
+    # 避免 printf / fopen 等被視為 deprecated
+    target_compile_definitions(asi_hello PRIVATE _CRT_SECURE_NO_WARNINGS)
 else()
     target_compile_options(asi_hello PRIVATE
         -Wall -Wextra -Wpedantic -Werror=return-type)
