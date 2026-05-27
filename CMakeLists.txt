@@ -75,14 +75,61 @@ endif()
 
 # ── Hello World 執行檔 ──────────────────────────────────────
 add_executable(asi_hello main.cpp)
-
+# PID 探測工具（暫時性，確定 PID 後可移除）
+add_executable(probe_pid probe_pid.cpp)
+target_include_directories(probe_pid PRIVATE "${VITURE_INCLUDE_DIR}")
+target_link_libraries(probe_pid PRIVATE viture_glasses)
+if(MSVC)
+    target_compile_options(probe_pid PRIVATE /utf-8 /W4)
+    target_compile_definitions(probe_pid PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
+# Windows 需要 dll 在 exe 旁（沿用主 target 的拷貝邏輯，或手動）
+if(WIN32)
+    foreach(dll_name glasses.dll carina_vio.dll opencv_world4100.dll glew32.dll libusb-1.0.dll)
+        add_custom_command(TARGET probe_pid POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${VITURE_LIB_DIR}/${dll_name}"
+                "$<TARGET_FILE_DIR:probe_pid>/${dll_name}")
+    endforeach()
+endif()
 target_include_directories(asi_hello PRIVATE "${VITURE_INCLUDE_DIR}")
 
 target_link_libraries(asi_hello PRIVATE viture_glasses)
 if(NOT WIN32)
     target_link_libraries(asi_hello PRIVATE viture_carina)
 endif()
-
+# VIO pose 診斷工具(暫時性,debug 完可移除)
+add_executable(probe_pose probe_pose.cpp)
+target_include_directories(probe_pose PRIVATE "${VITURE_INCLUDE_DIR}")
+target_link_libraries(probe_pose PRIVATE viture_glasses)
+if(MSVC)
+    target_compile_options(probe_pose PRIVATE /utf-8 /W4)
+    target_compile_definitions(probe_pose PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
+if(WIN32)
+    foreach(dll_name glasses.dll carina_vio.dll opencv_world4100.dll glew32.dll libusb-1.0.dll)
+        add_custom_command(TARGET probe_pose POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${VITURE_LIB_DIR}/${dll_name}"
+                "$<TARGET_FILE_DIR:probe_pose>/${dll_name}")
+    endforeach()
+endif()
+# VIO 靜態漂移測試 (暫時性,測完可移除)
+add_executable(probe_drift probe_drift.cpp)
+target_include_directories(probe_drift PRIVATE "${VITURE_INCLUDE_DIR}")
+target_link_libraries(probe_drift PRIVATE viture_glasses)
+if(MSVC)
+    target_compile_options(probe_drift PRIVATE /utf-8 /W4)
+    target_compile_definitions(probe_drift PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
+if(WIN32)
+    foreach(dll_name glasses.dll carina_vio.dll opencv_world4100.dll glew32.dll libusb-1.0.dll)
+        add_custom_command(TARGET probe_drift POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${VITURE_LIB_DIR}/${dll_name}"
+                "$<TARGET_FILE_DIR:probe_drift>/${dll_name}")
+    endforeach()
+endif()
 # ── libusb 依賴策略 ─────────────────────────────────────────
 # Windows         : SDK 附帶 libusb-1.0.dll，由 glasses.dll 內部載入，不需顯式 link
 # Linux x86_64    : SDK 附帶 libusb-1.0.so.0，直接 link
