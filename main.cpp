@@ -77,7 +77,10 @@ static constexpr int LUMA_ULTRA_CAMERA_PID  = 0x636B;  // confirmed via SDK doc
 // 真正的失敗在 USB read 階段才出現。「看起來合理」的 placeholder（例如 AI 生成
 // 的 magic number）會掩蓋根本原因，因此選用顯眼的 sentinel 0x0000。
 //
-static constexpr int LUMA_ULTRA_GLASSES_PID = 0x0000;  // SENTINEL: replace on hardware arrival
+static constexpr int LUMA_ULTRA_GLASSES_PID = 0x1104;  // confirmed: VID 0x35CA PID 0x1104
+                                                        // via probe_pid (is_product_id_valid +
+                                                        // get_market_name = "Luma Ultra") and
+                                                        // Device Manager enumeration.
 
 // ── 全域狀態 ────────────────────────────────────────────────
 static std::atomic<bool> g_running{true};
